@@ -769,7 +769,6 @@
     <script src="js/model-detail.js"></script>
     <script src="js/model-list.js"></script>
     <script src="js/model-action-modal.js"></script>
-    <script src="js/model-benchmark.js"></script>
     <script src="js/index-mobile-nav.js"></script>
     <script src="js/hf-mobile.js"></script>
     <script src="js/download-mobile.js"></script>
@@ -1177,6 +1176,13 @@
             input.addEventListener('input', (e) => filterModels(e.target.value));
         }
 
+        function escapeHtmlCompat(str) {
+            return String(str).replace(/[&<>"']/g, function(m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+        }
+        function escapeAttrCompat(str) {
+            return escapeHtmlCompat(str).replace(/`/g, '&#96;');
+        }
+
         function filterModels(k) {
             k = (k || '').toLowerCase();
             document.querySelectorAll('.model-item').forEach(el => {
@@ -1312,8 +1318,6 @@
                 const actionList = [
                     { label: isFavourite ? '取消喜好' : '标记喜好', className: 'btn-secondary', enabled: true, action: () => toggleFavouriteModel(null, model.id, model.nodeId) },
                     { label: '加载模型', className: 'btn-primary', enabled: canLoad, action: () => loadModel(model.id, model.name, '', model.nodeId) },
-                    { label: '性能测试', className: 'btn-secondary', enabled: true, action: () => openModelBenchmarkDialog(decodeURIComponent(modelIdEsc), decodeURIComponent(displayNameEsc)) },
-                    { label: '测试结果', className: 'btn-secondary', enabled: true, action: () => openModelBenchmarkList(decodeURIComponent(modelIdEsc), decodeURIComponent(displayNameEsc)) },
                     { label: '模型详情', className: 'btn-secondary', enabled: true, action: () => viewModelDetails(model.id, model.nodeId) },
                     { label: '停止模型', className: 'btn-danger', enabled: canStop, action: () => stopModel(model.id, model.nodeId) }
                 ];

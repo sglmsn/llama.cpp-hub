@@ -2393,6 +2393,13 @@
             document.getElementById('modelSearchInput').addEventListener('input', (e) => filterModels(e.target.value));
         }
 
+        function escapeHtmlCompat(str) {
+            return String(str).replace(/[&<>"']/g, function(m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+        }
+        function escapeAttrCompat(str) {
+            return escapeHtmlCompat(str).replace(/`/g, '&#96;');
+        }
+
         // 显示模型列表页面
         function showModelList() {
             document.getElementById('main-model-list').style.display = '';
@@ -2719,7 +2726,6 @@
     <script src="js/model-detail.js"></script>
     <script src="js/model-list.js"></script>
     <script src="js/model-action-modal.js"></script>
-    <script src="js/model-benchmark.js"></script>
     <script src="js/benchmark-v3.js"></script>
 </body>
 </html>
