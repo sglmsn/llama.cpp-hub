@@ -142,6 +142,58 @@
         }
         #main-benchmark-v3 .warn-banner { margin:0 18px 6px; padding:8px 12px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.30); border-radius:8px; font-size:12px; flex-shrink:0; display:flex; align-items:flex-start; gap:8px; }
         #main-benchmark-v3 .warn-banner i { color:#f59e0b; margin-top:1px; flex-shrink:0; }
+
+        #main-usage-report { display:flex; flex-direction:column; overflow:hidden; }
+        #main-usage-report .top-bar { flex-shrink:0; }
+        #main-usage-report .content-scrollable { flex:1; display:flex; flex-direction:column; padding:0 18px; }
+        #main-usage-report .tab-bar { margin:0 18px 12px; display:flex; gap:4px; background:var(--sidebar-bg); border:1px solid var(--border-color); border-radius:10px; padding:3px; flex-shrink:0; }
+        #main-usage-report .tab-bar button { flex:1; padding:8px 12px; border:none; border-radius:7px; background:transparent; color:#6b7280; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; font-family:inherit; }
+        #main-usage-report .tab-bar button:hover { color:#4f46e5; background:rgba(99,102,241,0.06); }
+        #main-usage-report .tab-bar button.active { background:rgba(99,102,241,0.12); color:#4f46e5; font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,0.12); }
+        #main-usage-report .tab-panel { display:none; flex:1; flex-direction:column; }
+        #main-usage-report .tab-panel.active { display:flex; }
+        #main-usage-report .report-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; padding:12px; margin:12px 0; box-shadow:0 8px 20px rgba(0,0,0,0.06); flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+        #main-usage-report .report-card-row { flex-direction:row; gap:12px; }
+        #main-usage-report .token-table-col { width:310px; flex-shrink:0; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+        #main-usage-report .token-scroll { flex:1; overflow:auto; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-color); padding:6px; }
+        #main-usage-report .token-chart-col { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+        #main-usage-report .report-table { width:100%; border-collapse:collapse; font-size:13px; }
+        #main-usage-report .report-table th,#main-usage-report .report-table td { border:1px solid var(--border-color); padding:6px 10px; text-align:left; white-space:nowrap; }
+        #main-usage-report .report-table th { background:var(--sidebar-bg); color:var(--text-secondary); font-weight:600; position:sticky; top:0; z-index:1; }
+        #main-usage-report .report-table tbody tr:nth-child(even) { background:rgba(255,255,255,0.02); }
+        #main-usage-report .report-table tbody tr:hover { background:rgba(99,102,241,0.06); }
+        #main-usage-report .report-table .empty { text-align:center; color:var(--text-secondary); padding:24px; }
+        #main-usage-report .table-wrap { flex:1; overflow:auto; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-color); }
+        #main-usage-report .token-card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; padding:8px 10px; margin-bottom:6px; }
+        #main-usage-report .token-card:last-child { margin-bottom:0; }
+        #main-usage-report .token-card .tk-model { font-weight:600; font-size:13px; margin-bottom:4px; color:var(--text-primary); }
+        #main-usage-report .token-card .tk-tokens { font-size:12px; color:var(--text-secondary); }
+        #main-usage-report .token-card .tk-tokens span { margin-right:12px; }
+        #main-usage-report .token-scroll .empty { text-align:center; color:var(--text-secondary); padding:24px; font-size:13px; }
+        #main-usage-report .report-summary { display:flex; gap:12px; margin:0; flex-shrink:0; }
+        #main-usage-report .report-summary .stat-card { flex:1; background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; padding:12px 16px; box-shadow:0 8px 20px rgba(0,0,0,0.06); }
+        #main-usage-report .report-summary .stat-card .stat-value { font-size:24px; font-weight:700; color:var(--primary-color); }
+        #main-usage-report .report-summary .stat-card .stat-label { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+        #main-usage-report .report-filter { display:flex; align-items:center; gap:8px; flex-shrink:0; margin:0; }
+        #main-usage-report .report-filter select { padding:4px 8px; border:1px solid var(--border-color); border-radius:6px; background:var(--card-bg); color:var(--text-primary); font-size:12px; font-family:inherit; }
+        #main-usage-report .report-pagination { display:flex; align-items:center; gap:8px; flex-shrink:0; padding:8px 0; font-size:12px; color:var(--text-secondary); }
+        #main-usage-report .report-pagination button { padding:4px 10px; border:1px solid var(--border-color); border-radius:6px; background:var(--card-bg); color:var(--text-primary); cursor:pointer; font-family:inherit; font-size:12px; }
+        #main-usage-report .report-pagination button:hover { border-color:var(--primary-color); color:var(--primary-color); }
+        #main-usage-report .report-pagination button:disabled { opacity:0.4; cursor:default; }
+        #main-usage-report .chart-wrap { flex:1; position:relative; border:1px solid var(--border-color); border-radius:8px; padding:6px; background:var(--bg-color); overflow:hidden; min-height:200px; max-height:260px; }
+        #main-usage-report .chart-wrap canvas { width:100%; height:100%; display:block; }
+        #main-usage-report .chart-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--text-secondary); pointer-events:none; }
+        #main-usage-report .chart-marker-legend { flex-shrink:0; padding:6px 0 0; display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12px; line-height:1.6; }
+        #main-usage-report .chart-marker-legend .ml-item { color:var(--text-primary); white-space:nowrap; }
+        #main-usage-report .chart-marker-legend .ml-marker { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:3px; background:var(--primary-color); color:#fff; font-size:10px; font-weight:700; margin-right:4px; vertical-align:middle; }
+        @media (max-width:768px) {
+            #main-usage-report .report-summary { flex-direction:column; }
+            #main-usage-report .tab-bar { margin:0 12px; }
+            #main-usage-report .content-scrollable { padding:0 12px; }
+            #main-usage-report .report-card { margin:8px 0; }
+            #main-usage-report .report-summary { margin:0; }
+            #main-usage-report .report-filter { margin:0; }
+        }
     </style>
 </head>
 <body>
@@ -190,6 +242,10 @@
             <a href="#" class="nav-item" id="nav-model-path" onclick="showModelPathSetting(); return false;">
                 <i class="fas fa-folder-open"></i>
                 <span data-i18n="nav.model_path">nav.model_path</span>
+            </a>
+            <a href="#" class="nav-item" id="nav-usage-report" onclick="showUsageReport(); return false;">
+                <i class="fas fa-chart-simple"></i>
+                <span>用量报表</span>
             </a>
             <a href="#" class="nav-item" id="nav-settings" onclick="showSettingsPage(); return false;">
                 <i class="fas fa-cog"></i>
@@ -886,6 +942,56 @@
                         </div>
                         <div class="chart-wrap" id="serverChartWrap"><canvas id="serverChartCanvas"></canvas><div id="serverChartEmpty" class="chart-empty">暂无数据</div></div>
                         <div class="table-wrap"><table class="result-table"><thead><tr><th>时间</th><th>模型</th><th>提示词</th><th>预填充(token/s)</th><th>输出</th><th>输出(token/s)</th><th>操作</th></tr></thead><tbody id="serverResultBody"><tr id="serverEmptyRow"><td class="empty" colspan="7">暂无记录</td></tr></tbody></table></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Usage Report -->
+    <main class="main-area" id="main-usage-report" style="display: none">
+        <div class="top-bar">
+            <h1 class="page-title"><i class="fas fa-chart-simple"></i> 用量报表</h1>
+        </div>
+        <div class="tab-bar">
+            <button class="active" data-tab="token-summary" onclick="UsageReport.switchTab('token-summary')">Token 概览</button>
+            <button data-tab="request-logs" onclick="UsageReport.switchTab('request-logs')">请求记录</button>
+        </div>
+        <div class="content-scrollable">
+            <div class="tab-panel active" id="panel-token-summary">
+                <div class="report-summary" id="tokenSummaryStats"></div>
+                <div class="report-card report-card-row">
+                    <div class="token-table-col">
+                        <div class="token-scroll" id="tokenSummaryBody">
+                        </div>
+                    </div>
+                    <div class="token-chart-col">
+                        <div class="chart-wrap" id="tokenChartWrap">
+                            <canvas id="tokenChartCanvas"></canvas>
+                            <div id="tokenChartEmpty" class="chart-empty">暂无数据</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-panel" id="panel-request-logs">
+                <div class="report-filter">
+                    <label>模型筛选：</label>
+                    <select id="requestLogModelFilter" onchange="UsageReport.filterByModel()">
+                        <option value="">全部</option>
+                    </select>
+                    <span style="flex:1"></span>
+                    <div class="report-pagination">
+                        <button id="reqLogPrev" onclick="UsageReport.prevPage()"><i class="fas fa-chevron-left"></i> 上一页</button>
+                        <span id="reqLogPageInfo">第 1 页</span>
+                        <button id="reqLogNext" onclick="UsageReport.nextPage()">下一页 <i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="report-card">
+                    <div class="table-wrap">
+                        <table class="report-table">
+                            <thead><tr><th>时间</th><th>模型</th><th>端点</th><th>Prompt Token</th><th>Predicted Token</th><th>总 Token</th><th>耗时(ms)</th><th>Prompt 速度(tok/s)</th><th>Predicted 速度(tok/s)</th></tr></thead>
+                            <tbody id="requestLogBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -2423,6 +2529,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             stopDeviceStatusAuto();
             //refreshModels();
@@ -2444,6 +2551,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             stopDeviceStatusAuto();
             loadLlamaCppList();
@@ -2465,6 +2573,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             stopDeviceStatusAuto();
             loadModelPathList();
@@ -2485,6 +2594,7 @@
             document.getElementById('main-console').style.display = '';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopDeviceStatusAuto();
             openConsoleModal();
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
@@ -2504,6 +2614,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             stopDeviceStatusAuto();
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
@@ -2522,6 +2633,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             stopDeviceStatusAuto();
             const main = document.getElementById('main-download');
@@ -2545,6 +2657,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             stopDeviceStatusAuto();
             const main = document.getElementById('main-settings');
@@ -2613,6 +2726,7 @@
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = '';
             document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             stopConsoleAuto();
             const contentEl = document.getElementById('deviceStatusContent');
             if (contentEl) contentEl.textContent = '';
@@ -2723,6 +2837,7 @@
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
             document.getElementById('main-device-status').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = '';
             stopConsoleAuto();
             stopDeviceStatusAuto();
@@ -2732,6 +2847,26 @@
             if (nav) nav.classList.add('active');
             if (typeof initServerTab === 'function') initServerTab();
         }
+
+        function showUsageReport() {
+            document.getElementById('main-model-list').style.display = 'none';
+            document.getElementById('main-llamacpp-setting').style.display = 'none';
+            document.getElementById('main-model-path-setting').style.display = 'none';
+            document.getElementById('main-settings').style.display = 'none';
+            document.getElementById('main-hf').style.display = 'none';
+            document.getElementById('main-download').style.display = 'none';
+            document.getElementById('main-console').style.display = 'none';
+            document.getElementById('main-device-status').style.display = 'none';
+            document.getElementById('main-benchmark-v3').style.display = 'none';
+            document.getElementById('main-usage-report').style.display = '';
+            stopConsoleAuto();
+            stopDeviceStatusAuto();
+            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+            navItems.forEach(item => item.classList.remove('active'));
+            const nav = document.getElementById('nav-usage-report');
+            if (nav) nav.classList.add('active');
+            if (typeof UsageReport !== 'undefined' && UsageReport.load) UsageReport.load();
+        }
     </script>
     <script src="js/settings.js"></script>
     <script src="js/model-icon.js"></script>
@@ -2739,5 +2874,6 @@
     <script src="js/model-list.js"></script>
     <script src="js/model-action-modal.js"></script>
     <script src="js/benchmark-v3.js"></script>
+    <script src="js/usage-report.js"></script>
 </body>
 </html>

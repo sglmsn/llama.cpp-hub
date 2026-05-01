@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import org.mark.llamacpp.server.LlamaServerManager;
 import org.mark.llamacpp.server.service.ModelRequestTracker;
 import org.mark.llamacpp.server.struct.ActiveRequest;
+import org.mark.llamacpp.server.struct.Timing;
 import org.mark.llamacpp.server.tools.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,6 +138,12 @@ public class OllamaEmbedService {
 				try {
 					parsed = JsonUtil.fromJson(responseBody, JsonObject.class);
 				} catch (Exception ignore) {
+				}
+				if (parsed != null && parsed.has("timings")) {
+					try {
+						Timing timing = JsonUtil.fromJson(parsed.get("timings"), Timing.class);
+						ModelRequestTracker.getInstance().updateTiming(requestId, timing);
+					} catch (Exception ignore) {}
 				}
 				// 回复客户端
 				Map<String, Object> out = OllamaApiTool.toOllamaEmbedResponse(modelName, parsed, totalDurationNs);

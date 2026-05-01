@@ -219,19 +219,6 @@ public class OllamaChatService {
 			}
 		});
 	}
-	
-	
-	/**
-	 * 	处理非流式响应。
-	 * @param ctx
-	 * @param connection
-	 * @param responseCode
-	 * @param modelName
-	 * @throws IOException
-	 */
-	private void handleOllamaChatNonStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName) throws IOException {
-		this.handleOllamaChatNonStreamResponse(ctx, connection, responseCode, modelName, null);
-	}
 
 	private void handleOllamaChatNonStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
 		String responseBody = OllamaApiTool.readBody(connection, responseCode >= 200 && responseCode < 300);
@@ -330,18 +317,6 @@ public class OllamaChatService {
 		out.put("eval_duration", Long.valueOf(evalDuration));
 		
 		Ollama.sendOllamaJson(ctx, HttpResponseStatus.OK, out);
-	}
-	
-	/**
-	 * 	处理流式响应。
-	 * @param ctx
-	 * @param connection
-	 * @param responseCode
-	 * @param modelName
-	 * @throws IOException
-	 */
-	private void handleOllamaChatStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName) throws IOException {
-		this.handleOllamaChatStreamResponse(ctx, connection, responseCode, modelName, null);
 	}
 
 	private void handleOllamaChatStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {

@@ -16,6 +16,8 @@ import io.netty.util.CharsetUtil;
 import org.mark.llamacpp.server.LlamaHubNode;
 import org.mark.llamacpp.server.LlamaServerManager;
 import org.mark.llamacpp.server.NodeManager;
+import org.mark.llamacpp.server.struct.ActiveRequest.Phase;
+import org.mark.llamacpp.server.struct.Timing;
 import org.mark.llamacpp.server.tools.JsonUtil;
 import org.mark.llamacpp.server.tools.ParamTool;
 import org.slf4j.Logger;
@@ -206,7 +208,7 @@ public class AnthropicService {
             isStream = anthropicReq.get("stream").getAsBoolean();
         }
         // 开始转发
-        this.forwardRequestToLlamaCpp(ctx, request, content, port, "/v1/complete", isStream);
+        this.forwardRequestToLlamaCpp(ctx, request, content, port, "/v1/complete", isStream, modelName);
     }
     
     /**
@@ -352,7 +354,7 @@ public class AnthropicService {
             return;
         }
 
-        forwardRequestToLlamaCpp(ctx, request, content, port, "/v1/messages/count_tokens", false);
+        forwardRequestToLlamaCpp(ctx, request, content, port, "/v1/messages/count_tokens", false, modelName);
     }
     
     
@@ -365,7 +367,7 @@ public class AnthropicService {
      * @param endpoint
      * @param isStream
      */
-    private void forwardRequestToLlamaCpp(ChannelHandlerContext ctx, FullHttpRequest request, String requestBody, int port, String endpoint, boolean isStream) {
+    private void forwardRequestToLlamaCpp(ChannelHandlerContext ctx, FullHttpRequest request, String requestBody, int port, String endpoint, boolean isStream, String modelName) {
         HttpMethod method = request.method();
         Map<String, String> headers = new HashMap<>();
         for (Map.Entry<String, String> entry : request.headers()) {
@@ -374,7 +376,11 @@ public class AnthropicService {
 
         worker.execute(() -> {
             HttpURLConnection connection = null;
+            String requestId = null;
             try {
+                if (modelName != null) {
+                    requestId = ModelRequestTracker.getInstance().createRequest(modelName, endpoint);
+                }
                 String targetUrl = String.format("http://localhost:%d%s", port, endpoint);
                 URL url = URI.create(targetUrl).toURL();
                 connection = (HttpURLConnection) url.openConnection();
@@ -406,17 +412,19 @@ public class AnthropicService {
                 
                 long t = System.currentTimeMillis();
                 int responseCode = connection.getResponseCode();
+                if (requestId != null) ModelRequestTracker.getInstance().updatePhase(requestId, Phase.GENERATION);
 
                 if (isStream) {
                 	logger.info("llama.cpp进程响应码: {}，，等待时间：{}", responseCode, System.currentTimeMillis() - t);
-                	this.handleStreamResponse(ctx, connection, responseCode);
+                	this.handleStreamResponse(ctx, connection, responseCode, requestId);
                 } else {
-                	this.handleNonStreamResponse(ctx, connection, responseCode);
+                	this.handleNonStreamResponse(ctx, connection, responseCode, requestId);
                 }
             } catch (Exception e) {
                 logger.info("Error forwarding Anthropic request to llama.cpp", e);
                 this.sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, e.getMessage());
             } finally {
+                if (requestId != null) ModelRequestTracker.getInstance().removeRequest(requestId);
                 if (connection != null) {
                     connection.disconnect();
                 }
@@ -515,7 +523,9 @@ public class AnthropicService {
 
         worker.execute(() -> {
             HttpURLConnection connection = null;
+            String requestId = null;
             try {
+                requestId = ModelRequestTracker.getInstance().createRequest(modelName, "/v1/messages");
                 URL url = URI.create(targetUrl).toURL();
                 connection = (HttpURLConnection) url.openConnection();
 
@@ -555,15 +565,17 @@ public class AnthropicService {
                 }
 
                 int responseCode = connection.getResponseCode();
+                ModelRequestTracker.getInstance().updatePhase(requestId, Phase.GENERATION);
                 if (isStream) {
-                    this.handleAnthropicStreamFromOai(ctx, connection, responseCode, modelName);
+                    this.handleAnthropicStreamFromOai(ctx, connection, responseCode, modelName, requestId);
                 } else {
-                    this.handleAnthropicNonStreamFromOai(ctx, connection, responseCode, modelName);
+                    this.handleAnthropicNonStreamFromOai(ctx, connection, responseCode, modelName, requestId);
                 }
             } catch (Exception e) {
                 logger.info("Error forwarding Anthropic->OpenAI request to llama.cpp", e);
                 this.sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, e.getMessage());
             } finally {
+                if (requestId != null) ModelRequestTracker.getInstance().removeRequest(requestId);
                 if (connection != null) {
                     connection.disconnect();
                 }
@@ -574,7 +586,7 @@ public class AnthropicService {
         });
     }
 
-    private void handleNonStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode) throws IOException {
+    private void handleNonStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String requestId) throws IOException {
         String responseBody;
         if (responseCode >= 200 && responseCode < 300) {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
@@ -596,6 +608,16 @@ public class AnthropicService {
             }
         }
 
+        if (requestId != null) {
+            try {
+                JsonElement root = JsonParser.parseString(responseBody);
+                if (root.isJsonObject() && root.getAsJsonObject().has("timings")) {
+                    Timing timing = gson.fromJson(root.getAsJsonObject().get("timings"), Timing.class);
+                    ModelRequestTracker.getInstance().updateTiming(requestId, timing);
+                }
+            } catch (Exception ignore) {}
+        }
+
         FullHttpResponse response = new DefaultFullHttpResponse(
             HttpVersion.HTTP_1_1,
             HttpResponseStatus.valueOf(responseCode)
@@ -614,7 +636,7 @@ public class AnthropicService {
         });
     }
 
-    private void handleAnthropicNonStreamFromOai(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName) throws IOException {
+    private void handleAnthropicNonStreamFromOai(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
         String responseBody;
         if (responseCode >= 200 && responseCode < 300) {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
@@ -643,6 +665,10 @@ public class AnthropicService {
                 this.sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, "Invalid OpenAI response");
                 return;
             }
+            if (oaiRes.has("timings")) {
+                Timing timing = gson.fromJson(oaiRes.get("timings"), Timing.class);
+                ModelRequestTracker.getInstance().updateTiming(requestId, timing);
+            }
             JsonObject anthropicRes = convertOaiResponseToAnthropic(oaiRes);
             responseBody = JsonUtil.toJson(anthropicRes);
         }
@@ -664,10 +690,9 @@ public class AnthropicService {
                 ctx.close();
             }
         });
-        LlamaRecordService.getInstance().handleStream(modelName, responseBody);
     }
 
-    private void handleStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode) throws IOException {
+    private void handleStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String requestId) throws IOException {
         HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(responseCode));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/event-stream; charset=UTF-8");
         response.headers().set(HttpHeaderNames.CACHE_CONTROL, "no-cache");
@@ -702,6 +727,16 @@ public class AnthropicService {
                     if (data.equals("[DONE]")) {
                         logger.info("收到流式响应结束标记");
                         break;
+                    }
+
+                    if (requestId != null && data.contains("\"timings\"")) {
+                        try {
+                            JsonElement root = JsonParser.parseString(data);
+                            if (root.isJsonObject() && root.getAsJsonObject().has("timings")) {
+                                Timing timing = gson.fromJson(root.getAsJsonObject().get("timings"), Timing.class);
+                                ModelRequestTracker.getInstance().updateTiming(requestId, timing);
+                            }
+                        } catch (Exception ignore) {}
                     }
 
                     ByteBuf content = ctx.alloc().buffer();
@@ -760,7 +795,7 @@ public class AnthropicService {
         });
     }
 
-    private void handleAnthropicStreamFromOai(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName) throws IOException {
+    private void handleAnthropicStreamFromOai(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
         HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(responseCode));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/event-stream; charset=UTF-8");
         response.headers().set(HttpHeaderNames.CACHE_CONTROL, "no-cache");
@@ -807,7 +842,13 @@ public class AnthropicService {
 				else 
 				// 统计生成信息 — timings 只在最后一个 chunk 出现，天然作为结束标记
 				if(data.contains("\"timings\"")) {
-					LlamaRecordService.getInstance().handleStream(modelName, data);
+					try {
+						JsonElement root = JsonParser.parseString(data);
+						if (root.isJsonObject() && root.getAsJsonObject().has("timings")) {
+							Timing timing = gson.fromJson(root.getAsJsonObject().get("timings"), Timing.class);
+							ModelRequestTracker.getInstance().updateTiming(requestId, timing);
+						}
+					} catch (Exception ignore) {}
 				}
 
                 JsonObject chunk;

@@ -21,7 +21,6 @@ import java.util.concurrent.Executors;
 
 import org.mark.llamacpp.server.LlamaCppProcess;
 import org.mark.llamacpp.server.LlamaServerManager;
-import org.mark.llamacpp.server.service.ModelRequestTracker;
 import org.mark.llamacpp.server.struct.ActiveRequest;
 import org.mark.llamacpp.server.NodeManager;
 import org.mark.llamacpp.server.struct.Timing;
@@ -799,18 +798,6 @@ public class OpenAIService {
 			}
 		}
 	}
-	
-	/**
-	 * 	处理非流式响应
-	 * @param ctx
-	 * @param connection
-	 * @param responseCode
-	 * @param modelName
-	 * @throws IOException
-	 */
-	private void handleNonStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName) throws IOException {
-		this.handleNonStreamResponse(ctx, connection, responseCode, modelName, null);
-	}
 
 	private void handleNonStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
 		// 读取响应
@@ -877,18 +864,6 @@ public class OpenAIService {
 		if (requestId != null && timing != null) {
 			ModelRequestTracker.getInstance().updateTiming(requestId, timing);
 		}
-	}
-	
-	/**
-	 * 	处理流式响应
-	 * @param ctx
-	 * @param connection
-	 * @param responseCode
-	 * @param modelName
-	 * @throws IOException
-	 */
-	private void handleStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName) throws IOException {
-		this.handleStreamResponse(ctx, connection, responseCode, modelName, null);
 	}
 
 	private void handleStreamResponse(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
