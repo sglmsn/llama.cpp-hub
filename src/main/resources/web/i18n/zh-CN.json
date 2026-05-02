@@ -906,5 +906,22 @@
   "model_detail.usage.cumulative_predict": "累计生成",
   "model_detail.usage.no_records": "无记录",
 
-  "modal.model_detail.label.usage": "用量"
+  "modal.model_detail.label.usage": "用量",
+
+  "page.settings.tab.nodes": "节点",
+  "page.settings.nodes.hint": "管理远程 llama.cpp-hub 节点，将多台机器聚合到统一入口。",
+  "page.settings.nodes.list_title": "已配置节点",
+  "page.settings.nodes.empty": "尚未配置远程节点",
+  "page.settings.nodes.not_master": "当前节点未启用 master 模式，无法管理远程节点。请在 application.json 中设置 \"nodeRole\": \"master\"。",
+  "page.settings.nodes.status.online": "在线",
+  "page.settings.nodes.status.offline": "离线",
+  "page.settings.nodes.status.pending": "待定",
+
+  "modal.node.add_title": "添加节点",
+  "modal.node.edit_title": "编辑节点",
+  "modal.node.id_desc": "唯一标识，添加后不可修改",
+  "modal.node.url_desc": "必须以 http:// 或 https:// 开头",
+  "modal.node.tags": "标签（逗号分隔）",
+
+  "confirm.node.delete": "确认删除节点 \"{nodeId}\" ？"
 }

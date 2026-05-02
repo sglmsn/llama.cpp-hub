@@ -545,6 +545,9 @@
                     <button class="settings-tab" data-tab="download">
                         <i class="fas fa-download"></i> <span data-i18n="page.settings.tab.download">page.settings.tab.download</span>
                     </button>
+                    <button class="settings-tab" data-tab="nodes">
+                        <i class="fas fa-network-wired"></i> <span data-i18n="page.settings.tab.nodes">节点</span>
+                    </button>
                 </div>
 
                 <div class="settings-content">
@@ -785,6 +788,27 @@
                                 <div class="settings-actions-row">
                                     <button class="btn btn-primary" id="saveDownloadBtn" data-i18n="common.save">common.save</button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: 节点 -->
+                    <div class="settings-tab-panel" data-tab-panel="nodes">
+                        <div class="settings-panel">
+                            <div class="settings-panel-body">
+                                <div class="settings-hint" data-i18n="page.settings.nodes.hint">管理远程 llama.cpp-hub 节点，将多台机器聚合到统一入口。</div>
+                                <div id="nodeMasterBanner" class="alert alert-warning" style="display:none; margin-bottom:0.75rem; padding:0.5rem 0.75rem; font-size:0.8rem; border-radius:0.5rem; background:#fef3c7; border:1px solid #fbbf24; color:#92400e;">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span data-i18n="page.settings.nodes.not_master">当前节点未启用 master 模式，无法管理远程节点。请在 application.json 中设置 "nodeRole": "master"。</span>
+                                </div>
+                                <div id="nodeToolbar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                    <span style="font-size:0.8rem; font-weight:600;" data-i18n="page.settings.nodes.list_title">已配置节点</span>
+                                    <button class="btn btn-primary btn-sm" id="addNodeBtn" onclick="SettingsPage.openNodeForm()">
+                                        <i class="fas fa-plus"></i> <span data-i18n="common.add">添加</span>
+                                    </button>
+                                </div>
+                                <div class="settings-toggle-list" id="nodeList"></div>
+                                <div id="nodeEmptyState" class="empty-state" data-i18n="page.settings.nodes.empty">尚未配置远程节点</div>
                             </div>
                         </div>
                     </div>
@@ -1244,6 +1268,48 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('createDownloadModal')" data-i18n="common.cancel">common.cancel</button>
                 <button class="btn btn-primary" onclick="DownloadManager.submitCreateDownload()" data-i18n="modal.download_create.submit">modal.download_create.submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Form Modal -->
+    <div class="modal" id="nodeFormModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-network-wired"></i> <span id="nodeFormTitle" data-i18n="modal.node.add_title">添加节点</span></h3>
+                <button class="modal-close" onclick="closeModal('nodeFormModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">节点 ID <span style="color:red">*</span></label>
+                    <input class="form-control" id="nodeFormId" placeholder="server-gpu-a">
+                    <small class="form-text" data-i18n="modal.node.id_desc">唯一标识，添加后不可修改</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="common.name">显示名称</label>
+                    <input class="form-control" id="nodeFormName" placeholder="GPU 服务器 A">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">URL <span style="color:red">*</span></label>
+                    <input class="form-control" id="nodeFormUrl" placeholder="http://192.168.1.100:8080">
+                    <small class="form-text" data-i18n="modal.node.url_desc">必须以 http:// 或 https:// 开头</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="page.settings.security.api_key">API Key（可选）</label>
+                    <input class="form-control" type="password" id="nodeFormKey" placeholder="远程节点的 API Key">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="modal.node.tags">标签（逗号分隔）</label>
+                    <input class="form-control" id="nodeFormTags" placeholder="A100, production">
+                </div>
+                <div class="form-check" style="margin-top:0.75rem;">
+                    <input type="checkbox" id="nodeFormEnabled" checked>
+                    <label class="form-check-label" for="nodeFormEnabled" data-i18n="common.enable">启用</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('nodeFormModal')" data-i18n="common.cancel">取消</button>
+                <button class="btn btn-primary" onclick="SettingsPage.saveNodeForm()" data-i18n="common.save">保存</button>
             </div>
         </div>
     </div>

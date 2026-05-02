@@ -906,5 +906,22 @@
   "model_detail.usage.cumulative_predict": "Cumulative predict",
   "model_detail.usage.no_records": "No records",
 
-  "modal.model_detail.label.usage": "Usage"
+  "modal.model_detail.label.usage": "Usage",
+
+  "page.settings.tab.nodes": "Nodes",
+  "page.settings.nodes.hint": "Manage remote llama.cpp-hub nodes, aggregating multiple machines into a single entry point.",
+  "page.settings.nodes.list_title": "Configured Nodes",
+  "page.settings.nodes.empty": "No remote nodes configured yet.",
+  "page.settings.nodes.not_master": "Current node is not in master mode. Remote node management is disabled. Set \"nodeRole\": \"master\" in application.json.",
+  "page.settings.nodes.status.online": "Online",
+  "page.settings.nodes.status.offline": "Offline",
+  "page.settings.nodes.status.pending": "Pending",
+
+  "modal.node.add_title": "Add Node",
+  "modal.node.edit_title": "Edit Node",
+  "modal.node.id_desc": "Unique identifier, cannot be changed after creation.",
+  "modal.node.url_desc": "Must start with http:// or https://",
+  "modal.node.tags": "Tags (comma-separated)",
+
+  "confirm.node.delete": "Delete node \"{nodeId}\"?"
 }
