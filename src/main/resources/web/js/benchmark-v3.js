@@ -121,10 +121,11 @@ function getNodeColor(nodeId) {
   }
   return ((Math.abs(hash) * 137.508) % 360).toFixed(1);
 }
-function nodeBadgeHtml(nodeId) {
+function nodeBadgeHtml(nodeId, nodeName) {
   if (!nodeId || nodeId === 'local') return '';
   var hue = getNodeColor(nodeId);
-  return '<span class="node-badge" style="color:hsl(' + hue + ',65%,70%);background-color:hsl(' + hue + ',50%,12%);"><i class="fas fa-server"></i> ' + escapeHtml(nodeId) + '</span>';
+  var label = nodeName || nodeId;
+  return '<span class="node-badge" style="color:hsl(' + hue + ',65%,70%);background-color:hsl(' + hue + ',50%,12%);"><i class="fas fa-server"></i> ' + escapeHtml(label) + '</span>';
 }
 function modelNodeId(state, selectEl) {
   const opt = selectEl && selectEl.selectedOptions && selectEl.selectedOptions[0];
@@ -244,7 +245,7 @@ function buildModelItem(m, state) {
   const t = document.createElement('div'); t.className = 'meta';
   const statusText = state.loadedModelIds && state.loadedModelIds.has(id) ? '已加载' : '';
   const parts = [];
-  if (isRemote) parts.push(nodeBadgeHtml(nd));
+  if (isRemote) parts.push(nodeBadgeHtml(nd, m.nodeName));
   if (statusText) parts.push(escapeHtml(statusText));
   t.innerHTML = parts.join(' ');
   btn.appendChild(n);
