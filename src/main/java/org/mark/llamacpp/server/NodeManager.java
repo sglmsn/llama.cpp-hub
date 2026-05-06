@@ -254,9 +254,16 @@ public class NodeManager {
     }
 
     /**
-     * 通用远程 API 调用
+     * 通用远程 API 调用（默认 2 秒超时）
      */
     public HttpResult callRemoteApi(String nodeId, String method, String path, JsonObject body) {
+        return callRemoteApi(nodeId, method, path, body, 2000, 2000);
+    }
+
+    /**
+     * 通用远程 API 调用（自定义超时）
+     */
+    public HttpResult callRemoteApi(String nodeId, String method, String path, JsonObject body, int connectTimeout, int readTimeout) {
         LlamaHubNode node = getNode(nodeId);
         if (node == null || node.baseUrl == null) {
             return new HttpResult(404, "Node not found: " + nodeId);
@@ -272,8 +279,8 @@ public class NodeManager {
             }
 
             connection.setRequestMethod(method);
-            connection.setConnectTimeout(2000);
-            connection.setReadTimeout(2000);
+            connection.setConnectTimeout(connectTimeout);
+            connection.setReadTimeout(readTimeout);
 
             if (node.apiKey != null && !node.apiKey.isBlank()) {
                 connection.setRequestProperty("Authorization", "Bearer " + node.apiKey);

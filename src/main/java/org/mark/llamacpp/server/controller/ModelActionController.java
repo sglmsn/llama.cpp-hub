@@ -158,7 +158,7 @@ public class ModelActionController implements BaseController {
 				// 刷新单个远程节点
 				logger.info("[模型操作] 远程节点刷新模型: nodeId={}", nodeId);
 				NodeManager.HttpResult result = NodeManager.getInstance().callRemoteApi(
-						nodeId, "GET", "api/models/refresh", null);
+						nodeId, "GET", "api/models/refresh", null, 5000, 15000);
 				if (result.isSuccess()) {
 					NodeManager.writeHttpResultToChannel(ctx, result, "[模型操作刷新远程]");
 				} else {
@@ -173,18 +173,34 @@ public class ModelActionController implements BaseController {
 
 			// 同步刷新所有已启用的远程节点
 			List<LlamaHubNode> enabledNodes = NodeManager.getInstance().listEnabledNodes();
+			List<Map<String, Object>> nodeResults = new ArrayList<>();
 			for (LlamaHubNode node : enabledNodes) {
+				Map<String, Object> nodeResult = new HashMap<>();
+				nodeResult.put("nodeId", node.getNodeId());
+				nodeResult.put("nodeName", node.getName());
 				try {
-					NodeManager.getInstance().callRemoteApi(node.getNodeId(), "GET", "api/models/refresh", null);
-					logger.info("[模型操作] 已刷新远程节点: nodeId={}", node.getNodeId());
+					NodeManager.HttpResult result = NodeManager.getInstance().callRemoteApi(
+						node.getNodeId(), "GET", "api/models/refresh", null, 5000, 15000);
+					if (result.isSuccess()) {
+						nodeResult.put("success", true);
+						logger.info("[模型操作] 已刷新远程节点: nodeId={}", node.getNodeId());
+					} else {
+						nodeResult.put("success", false);
+						nodeResult.put("error", "HTTP " + result.getStatusCode());
+						logger.warn("[模型操作] 刷新远程节点失败: nodeId={}, code={}", node.getNodeId(), result.getStatusCode());
+					}
 				} catch (Exception e) {
+					nodeResult.put("success", false);
+					nodeResult.put("error", e.getMessage());
 					logger.warn("[模型操作] 刷新远程节点失败: nodeId={}, error={}", node.getNodeId(), e.getMessage());
 				}
+				nodeResults.add(nodeResult);
 			}
 
 			Map<String, Object> response = new HashMap<>();
 			response.put("success", true);
 			response.put("refreshed", true);
+			response.put("nodes", nodeResults);
 			LlamaServer.sendJsonResponse(ctx, response);
 		} catch (Exception e) {
 			logger.info("强制刷新模型列表时发生错误", e);
