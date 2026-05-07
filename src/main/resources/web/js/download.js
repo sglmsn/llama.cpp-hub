@@ -321,6 +321,13 @@
             const targetPathText = download && download.targetPath ? String(download.targetPath) : '';
             const urlText = download && download.url ? String(download.url) : '';
             const fullPathText = joinPath(targetPathText, download && download.fileName ? String(download.fileName) : '');
+            const nodeId = download && download.nodeId ? String(download.nodeId) : '';
+            const nodeName = download && download.nodeName ? String(download.nodeName) : nodeId;
+            const isRemote = nodeId && nodeId !== 'local';
+            const nodeColor = isRemote ? (typeof getNodeColor === 'function' ? getNodeColor(nodeId) : '0') : '';
+            const nodeBadge = isRemote
+                ? '<span class="node-badge" style="color:hsl(' + nodeColor + ',65%,70%);background-color:hsl(' + nodeColor + ',50%,12%);" title="' + escapeHtml(nodeName) + '"><i class="fas fa-server"></i> ' + escapeHtml(nodeName) + '</span>'
+                : '';
 
             html += `
                 <div class="download-item" id="download-${taskId}">
@@ -331,6 +338,7 @@
                         <div class="download-name" title="${escapeHtml((download && (download.fileName || download.url)) ? String(download.fileName || download.url) : '')}">
                             ${escapeHtml(fileNameText)}
                         </div>
+                        ${nodeBadge}
                         <div class="download-meta">
                             ${totalBytes > 0 ? `<span><i class="fas fa-hdd"></i> ${formatFileSize(totalBytes)}</span>` : ''}
                         </div>
@@ -367,7 +375,27 @@
 
     function updateDownloadItem(taskId, data) {
         const idx = (state.downloads || []).findIndex(d => d && d.taskId === taskId);
-        if (idx < 0) return;
+        if (idx < 0) {
+            // New task from remote node (via WebSocket relay)
+            if (!state.downloads) state.downloads = [];
+            state.downloads.push({
+                taskId: taskId,
+                state: data.state || 'IDLE',
+                url: data.url || '',
+                fileName: data.fileName || '',
+                targetPath: data.targetPath || '',
+                totalBytes: data.totalBytes || 0,
+                downloadedBytes: data.downloadedBytes || 0,
+                partsCompleted: data.partsCompleted || 0,
+                partsTotal: data.partsTotal || 0,
+                progressRatio: data.progressRatio || 0,
+                createdAt: data.timestamp || data.createdAt || Date.now(),
+                nodeId: data.nodeId || ''
+            });
+            renderDownloadsList();
+            updateStats();
+            return;
+        }
         state.downloads[idx] = { ...state.downloads[idx], ...data };
         renderDownloadsList();
         updateStats();
@@ -375,7 +403,26 @@
 
     function updateDownloadProgress(taskId, data) {
         const idx = (state.downloads || []).findIndex(d => d && d.taskId === taskId);
-        if (idx < 0) return;
+        if (idx < 0) {
+            // Unknown task (from remote relay); create placeholder from progress data
+            if (!state.downloads) state.downloads = [];
+            state.downloads.push({
+                taskId: taskId,
+                state: 'DOWNLOADING',
+                url: data.url || '',
+                fileName: data.fileName || '',
+                totalBytes: data.totalBytes || 0,
+                downloadedBytes: data.downloadedBytes || 0,
+                partsCompleted: data.partsCompleted || 0,
+                partsTotal: data.partsTotal || 0,
+                progressRatio: data.progressRatio || 0,
+                createdAt: data.timestamp || Date.now(),
+                nodeId: data.nodeId || ''
+            });
+            renderDownloadsList();
+            updateStats();
+            return;
+        }
 
         const nowMs = normalizeTimestampMs(data && data.timestamp);
         const downloadedBytesNumber = data && data.downloadedBytes > 0 ? Number(data.downloadedBytes) : 0;
@@ -512,43 +559,36 @@
         if (totalEl) totalEl.textContent = String(totalCount);
     }
 
-    async function getDownloadPath() {
-        return fetch('/api/downloads/path/get')
-            .then(response => response.json())
-            .then(data => {
-                return (data && data.path) ? data.path : '';
-            })
-            .catch(error => {
-                console.error(t('log.download_path_get_failed', '获取下载路径失败:'), error);
-                return '';
-            });
-    }
-
     function openCreateDownloadModal() {
-        getDownloadPath().then(path => {
-            if (path) {
-                const el = document.getElementById('downloadPath');
-                if (el) el.value = path;
-            }
-        });
+        fetch('/api/node/list')
+            .then(r => r.json())
+            .then(data => {
+                const sel = document.getElementById('downloadNodeId');
+                if (!sel) return;
+                while (sel.options.length > 1) sel.remove(1);
+                const nodes = data && data.data ? data.data : [];
+                nodes.forEach(n => {
+                    if (n && n.nodeId && n.nodeId !== 'local' && n.enabled !== false) {
+                        const opt = document.createElement('option');
+                        opt.value = n.nodeId;
+                        opt.textContent = n.name || n.nodeId;
+                        sel.appendChild(opt);
+                    }
+                });
+            })
+            .catch(() => {});
         const modal = document.getElementById('createDownloadModal');
         if (modal) modal.classList.add('show');
     }
 
     function submitCreateDownload() {
         const urlEl = document.getElementById('downloadUrl');
-        const pathEl = document.getElementById('downloadPath');
         const fileNameEl = document.getElementById('downloadFileName');
         const url = urlEl ? String(urlEl.value || '').trim() : '';
-        const path = pathEl ? String(pathEl.value || '').trim() : '';
         const fileName = fileNameEl ? String(fileNameEl.value || '').trim() : '';
 
         if (!url) {
             showToast(t('toast.error', '错误'), t('download.validation.url_required', '请输入下载URL'), 'error');
-            return;
-        }
-        if (!path) {
-            showToast(t('toast.error', '错误'), t('download.validation.path_required', '请输入保存路径'), 'error');
             return;
         }
 
@@ -557,9 +597,13 @@
         const folderNameEl = document.getElementById('downloadFolderName');
         const folderName = !autoCreateFolder && folderNameEl ? String(folderNameEl.value || '').trim() : '';
 
-        const payload = { url, path };
+        const nodeIdEl = document.getElementById('downloadNodeId');
+        const nodeId = nodeIdEl ? nodeIdEl.value : 'local';
+
+        const payload = { url };
         if (fileName) payload.fileName = fileName;
         if (folderName) payload.folderName = folderName;
+        if (nodeId && nodeId !== 'local') payload.nodeId = nodeId;
 
         fetch('/api/downloads/create', {
             method: 'POST',
@@ -571,7 +615,11 @@
             if (data && data.success) {
                 showToast(t('toast.success', '成功'), t('download.toast.task_created', '任务已创建'), 'success');
                 closeModal('createDownloadModal');
-                refreshDownloads();
+                if (nodeId && nodeId !== 'local') {
+                    // Remote task: host doesn't track it; WebSocket relay will populate it
+                } else {
+                    refreshDownloads();
+                }
             } else {
                 showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('download.toast.create_failed', '创建下载任务失败'), 'error');
             }
@@ -635,44 +683,6 @@
         });
     }
 
-    function openSettingsModal() {
-        getDownloadPath().then(path => {
-            if (path) {
-                const el = document.getElementById('defaultDownloadPath');
-                if (el) el.value = path;
-            }
-        });
-        const modal = document.getElementById('settingsModal');
-        if (modal) modal.classList.add('show');
-    }
-
-    function saveSettings() {
-        const el = document.getElementById('defaultDownloadPath');
-        const path = el ? String(el.value || '').trim() : '';
-        if (!path) {
-            showToast(t('toast.error', '错误'), t('download.validation.download_dir_required', '请输入下载路径'), 'error');
-            return;
-        }
-
-        fetch('/api/downloads/path/set', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.path) {
-                showToast(t('toast.success', '成功'), t('toast.saved', '已保存'), 'success');
-                closeModal('settingsModal');
-            } else {
-                showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('common.save_failed', '保存失败'), 'error');
-            }
-        })
-        .catch(() => {
-            showToast(t('toast.error', '错误'), t('common.network_request_failed', '网络请求失败'), 'error');
-        });
-    }
-
     function start() {
         if (state.started) return;
         state.started = true;
@@ -698,9 +708,7 @@
         submitCreateDownload,
         pauseDownload,
         resumeDownload,
-        deleteDownload,
-        openSettingsModal,
-        saveSettings
+        deleteDownload
     };
 
     if (isDownloadHtml) {
@@ -710,9 +718,6 @@
         window.pauseDownload = pauseDownload;
         window.resumeDownload = resumeDownload;
         window.deleteDownload = deleteDownload;
-        window.openSettingsModal = openSettingsModal;
-        window.saveSettings = saveSettings;
-        window.getDownloadPath = getDownloadPath;
         window.closeModal = closeModal;
         window.showToast = showToast;
 

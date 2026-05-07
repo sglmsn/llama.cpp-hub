@@ -456,6 +456,11 @@ public class NodeManager {
 		if (result == null || !result.isSuccess()) {
 			logger.warn("{} 远程调用失败: code={}", logTag != null ? logTag : "[代理]",
 					result != null ? result.getStatusCode() : "null");
+			String errorBody = (result != null && result.getBody() != null) ? result.getBody() : "{\"success\":false,\"error\":\"远程调用失败\"}";
+			io.netty.handler.codec.http.HttpResponseStatus status = result != null
+					? io.netty.handler.codec.http.HttpResponseStatus.valueOf(result.getStatusCode())
+					: io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+			writeJsonToChannel(ctx, errorBody, status);
 			return;
 		}
 		try {
@@ -474,6 +479,24 @@ public class NodeManager {
 			ctx.writeAndFlush(response).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
 		} catch (Exception e) {
 			logger.warn("{} 写入响应失败: {}", logTag != null ? logTag : "[代理]", e.getMessage());
+		}
+	}
+
+	private static void writeJsonToChannel(io.netty.channel.ChannelHandlerContext ctx, String json,
+			io.netty.handler.codec.http.HttpResponseStatus status) {
+		try {
+			byte[] bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+			io.netty.handler.codec.http.FullHttpResponse response =
+				new io.netty.handler.codec.http.DefaultFullHttpResponse(
+					io.netty.handler.codec.http.HttpVersion.HTTP_1_1, status);
+			response.headers().set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
+			response.headers().set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH, bytes.length);
+			response.headers().set(io.netty.handler.codec.http.HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+			response.headers().set(io.netty.handler.codec.http.HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "*");
+			response.content().writeBytes(bytes);
+			ctx.writeAndFlush(response).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+		} catch (Exception e) {
+			logger.warn("写入响应失败: {}", e.getMessage());
 		}
 	}
 

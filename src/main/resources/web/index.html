@@ -1283,13 +1283,7 @@
                         <input type="url" class="form-control" id="downloadUrl" name="downloadUrl" placeholder="https://example.com/file.zip" required>
                         <small class="form-text" data-i18n="modal.download_create.url_desc">modal.download_create.url_desc</small>
                     </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="downloadPath" data-i18n="modal.download_create.path">modal.download_create.path</label>
-                        <input type="text" class="form-control" id="downloadPath" name="downloadPath" placeholder="downloads" value="C:\Users\Mark\Downloads" required>
-                        <small class="form-text" data-i18n="modal.download_create.path_desc">modal.download_create.path_desc</small>
-                    </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label" for="downloadFileName" data-i18n="modal.download_create.filename_optional">modal.download_create.filename_optional</label>
                         <input type="text" class="form-control" id="downloadFileName" name="downloadFileName" placeholder="modal.download_create.filename_placeholder" data-i18n="modal.download_create.filename_placeholder" data-i18n-attr="placeholder">
@@ -1308,6 +1302,14 @@
                         <label class="form-label" for="downloadFolderName" data-i18n="modal.download_create.folder_name">文件夹名称</label>
                         <input type="text" class="form-control" id="downloadFolderName" name="folderName" placeholder="my-model-folder">
                         <small class="form-text" data-i18n="modal.download_create.folder_name_desc">下载的文件将放在此文件夹中</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="downloadNodeId" data-i18n="modal.download_create.node">下载节点</label>
+                        <select id="downloadNodeId" class="form-control">
+                            <option value="local" data-i18n="page.model.filter.local">本机</option>
+                        </select>
+                        <small class="form-text" data-i18n="modal.download_create.node_desc">选择远程节点执行下载任务</small>
                     </div>
                 </form>
             </div>
@@ -1360,28 +1362,6 @@
         </div>
     </div>
 
-    <div class="modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title"><i class="fas fa-cog"></i> <span data-i18n="modal.system_settings.title">modal.system_settings.title</span></h3>
-                <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="settingsForm">
-                    <div class="form-group">
-                        <label class="form-label" for="defaultDownloadPath" data-i18n="modal.system_settings.default_download_dir">modal.system_settings.default_download_dir</label>
-                        <input type="text" class="form-control" id="defaultDownloadPath" name="defaultDownloadPath" placeholder="download">
-                        <small class="form-text" data-i18n="modal.system_settings.default_download_dir_desc">modal.system_settings.default_download_dir_desc</small>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('settingsModal')" data-i18n="common.cancel">common.cancel</button>
-                <button class="btn btn-primary" onclick="DownloadManager.saveSettings()" data-i18n="modal.system_settings.save">modal.system_settings.save</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Benchmark V3 Params Modal -->
     <div id="benchParamsModal" style="display:none;">
         <div class="bench-modal-dialog">
@@ -1412,7 +1392,7 @@
     <div id="dynamicModalRoot"></div>
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="js/marked.min.js"></script>
+    <script src="js/marked.umd.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/websocket.js"></script>
     <script src="js/console-modal.js"></script>
@@ -2214,8 +2194,6 @@
                 const cb = document.getElementById('autoCreateFolder');
                 if (cb) { cb.checked = true; toggleAutoFolder(); }
             } else if (id === 'settingsModal') {
-                const form = document.getElementById('settingsForm');
-                if (form) form.reset();
             }
         }
         
