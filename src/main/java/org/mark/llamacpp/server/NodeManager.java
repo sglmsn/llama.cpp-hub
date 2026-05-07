@@ -257,7 +257,7 @@ public class NodeManager {
      * 通用远程 API 调用（默认 2 秒超时）
      */
     public HttpResult callRemoteApi(String nodeId, String method, String path, JsonObject body) {
-        return callRemoteApi(nodeId, method, path, body, 2000, 2000);
+        return callRemoteApi(nodeId, method, path, body, 1000 * 60, 1000 * 60);
     }
 
     /**
