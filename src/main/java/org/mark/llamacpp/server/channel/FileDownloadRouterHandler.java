@@ -537,7 +537,29 @@ public class FileDownloadRouterHandler extends SimpleChannelInboundHandler<FullH
 	private Map<String, Object> createAndStartTask(String url, String path, String fileName) {
 		Map<String, Object> result = new HashMap<>();
 		try {
-			Path targetFile = resolveTargetFile(path, fileName, url);
+			String selectedName = trimToNull(fileName);
+			if (selectedName == null) {
+				selectedName = inferFileName(url);
+			}
+			if (selectedName == null || selectedName.isBlank()) {
+				throw new IllegalArgumentException("无法推断文件名");
+			}
+			selectedName = selectedName.replaceAll("[<>:\"/\\\\|?*]", "_").trim();
+			if (selectedName.isEmpty()) {
+				throw new IllegalArgumentException("文件名不合法");
+			}
+
+			// Create folder named after file (without extension)
+			String folderName = selectedName;
+			int dotIndex = selectedName.lastIndexOf('.');
+			if (dotIndex > 0) {
+				folderName = selectedName.substring(0, dotIndex);
+			}
+			Path base = Paths.get(path);
+			Path targetDir = base.resolve(folderName);
+			Files.createDirectories(targetDir);
+
+			Path targetFile = targetDir.resolve(selectedName);
 			DownloadTaskInfo created = taskManager.createTask(url, targetFile, 8);
 			taskManager.startTask(created.getTaskId());
 			result.put("success", true);

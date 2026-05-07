@@ -310,7 +310,7 @@
                 }
             }
 
-            const totalBytes = download && download.totalBytes ? Number(download.totalBytes) : 0;
+            const totalBytes = download && download.totalBytes > 0 ? Number(download.totalBytes) : 0;
             const downloadedBytes = download && download.downloadedBytes ? Number(download.downloadedBytes) : 0;
             const progressRatio = totalBytes > 0 ? (downloadedBytes / totalBytes) : 0;
             const progressPercent = Math.round(progressRatio * 100);
@@ -332,7 +332,7 @@
                             ${escapeHtml(fileNameText)}
                         </div>
                         <div class="download-meta">
-                            ${totalBytes ? `<span><i class="fas fa-hdd"></i> ${formatFileSize(totalBytes)}</span>` : ''}
+                            ${totalBytes > 0 ? `<span><i class="fas fa-hdd"></i> ${formatFileSize(totalBytes)}</span>` : ''}
                         </div>
                         ${(fullPathText || urlText) ? `
                             <div class="download-meta" style="margin-top: 0.25rem; flex-direction: column; gap: 0.25rem; align-items: flex-start;">
@@ -349,7 +349,7 @@
                                     <span><i class="fas fa-percentage"></i> ${progressPercent}%</span>
                                     <span><i class="fas fa-gauge-high"></i> ${speedText}</span>
                                     ${downloadedBytes ? `<span><i class="fas fa-download"></i> ${formatFileSize(downloadedBytes)}</span>` : ''}
-                                    ${totalBytes ? `<span><i class="fas fa-hdd"></i> ${formatFileSize(totalBytes)}</span>` : ''}
+                                    ${totalBytes > 0 ? `<span><i class="fas fa-hdd"></i> ${formatFileSize(totalBytes)}</span>` : ''}
                                 </div>
                             </div>
                         ` : ''}
@@ -457,6 +457,38 @@
                     <span><i class="fas fa-download"></i> ${formatFileSize(downloadedBytes)}</span>
                     ${totalBytes > 0 ? `<span><i class="fas fa-hdd"></i> ${formatFileSize(totalBytes)}</span>` : ''}
                 `;
+            }
+
+            // Update upper metadata size display when totalBytes becomes known
+            const detailsDiv = downloadElement.querySelector('.download-details');
+            if (detailsDiv) {
+                let upperMeta = null;
+                for (let i = 0; i < detailsDiv.children.length; i++) {
+                    if (detailsDiv.children[i].classList.contains('download-meta')) {
+                        upperMeta = detailsDiv.children[i];
+                        break;
+                    }
+                }
+                if (upperMeta) {
+                    let hddSpan = null;
+                    for (const span of upperMeta.querySelectorAll('span')) {
+                        if (span.innerHTML.indexOf('fa-hdd') !== -1) {
+                            hddSpan = span;
+                            break;
+                        }
+                    }
+                    if (totalBytes > 0) {
+                        if (hddSpan) {
+                            hddSpan.innerHTML = '<i class="fas fa-hdd"></i> ' + formatFileSize(totalBytes);
+                        } else {
+                            const span = document.createElement('span');
+                            span.innerHTML = '<i class="fas fa-hdd"></i> ' + formatFileSize(totalBytes);
+                            upperMeta.appendChild(span);
+                        }
+                    } else {
+                        if (hddSpan) hddSpan.remove();
+                    }
+                }
             }
         }
 

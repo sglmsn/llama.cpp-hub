@@ -118,7 +118,6 @@ public class DownloadTaskManager implements Closeable {
 					snapshot = task.copy();
 				}
 				notifyStateChanged(snapshot, DownloadTaskStatus.RUNNING, DownloadTaskStatus.COMPLETED);
-				notifyTaskCompleted(snapshot);
 			} catch (IOException e) {
 				DownloadTaskInfo snapshot;
 				DownloadTaskStatus newStatus;

@@ -243,8 +243,8 @@
                 <i class="fas fa-download"></i>
                 <span data-i18n="nav.download">nav.download</span>
             </a>
-            <a href="#" class="nav-item" id="nav-hf" onclick="showHuggingFace(); return false;">
-                <i class="fas fa-cloud"></i>
+            <a href="#" class="nav-item" id="nav-hf" onclick="showHuggingFace(); return false;" style="display: none">
+                <i class="fas fa-search"></i>
                 <span data-i18n="nav.hf">nav.hf</span>
             </a>
             <!-- <a href="#" class="nav-item" id="nav-device-status" onclick="showDeviceStatus(); return false;">
@@ -395,7 +395,7 @@
         <div class="top-bar">
             <h1 class="page-title" data-i18n="page.download.title">page.download.title</h1>
             <div class="top-actions">
-                <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()" style="display: none">
+                <button class="btn btn-primary" onclick="DownloadManager.openCreateDownloadModal()">
                     <i class="fas fa-plus"></i>
                     <span data-i18n="page.download.create_task">page.download.create_task</span>
                 </button>
