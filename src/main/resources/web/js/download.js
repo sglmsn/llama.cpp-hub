@@ -615,11 +615,7 @@
             if (data && data.success) {
                 showToast(t('toast.success', '成功'), t('download.toast.task_created', '任务已创建'), 'success');
                 closeModal('createDownloadModal');
-                if (nodeId && nodeId !== 'local') {
-                    // Remote task: host doesn't track it; WebSocket relay will populate it
-                } else {
-                    refreshDownloads();
-                }
+                refreshDownloads();
             } else {
                 showToast(t('toast.error', '错误'), (data && data.error) ? data.error : t('download.toast.create_failed', '创建下载任务失败'), 'error');
             }
