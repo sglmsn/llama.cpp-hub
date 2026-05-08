@@ -133,8 +133,7 @@
 
     async function fetchRemoteConsole(nodeId, baseUrl) {
         try {
-            var url = baseUrl.replace(/\/+$/, '') + '/api/sys/console';
-            var resp = await fetch(url);
+            var resp = await fetch('/api/sys/console?nodeId=' + encodeURIComponent(nodeId));
             var text = await resp.text();
             var pre = document.getElementById('remoteConsoleContent-' + nodeId);
             if (pre && text) pre.textContent = text;

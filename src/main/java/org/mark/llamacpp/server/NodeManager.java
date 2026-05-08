@@ -506,7 +506,7 @@ public class NodeManager {
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = br.readLine()) != null) {
-                sb.append(line);
+                sb.append(line).append('\n');
             }
             return sb.toString();
         }
