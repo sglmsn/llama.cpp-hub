@@ -927,5 +927,18 @@
   "confirm.node.delete": "确认删除节点 \"{nodeId}\" ？",
   "report.cache_label": "缓存",
   "report.total_cache": "总缓存命中 Token",
-  "report.cache_tokens": "缓存 Token"
+  "report.cache_tokens": "缓存 Token",
+
+  "page.settings.tab.update": "检查更新",
+  "page.settings.update.current_version": "当前版本",
+  "page.settings.update.check_btn": "检查更新",
+  "page.settings.update.latest_version": "最新版本",
+  "page.settings.update.published_at": "发布时间",
+  "page.settings.update.view_release": "查看 Release 页面",
+  "page.settings.update.release_notes": "更新日志",
+  "page.settings.update.status.up_to_date": "已是最新版本",
+  "page.settings.update.status.update_available": "发现新版本",
+  "page.settings.update.status.check_failed": "检查失败",
+  "page.settings.update.status.checking": "检查中...",
+  "page.settings.update.self_compiled": "自编译版本"
 }

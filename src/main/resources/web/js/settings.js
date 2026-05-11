@@ -561,6 +561,104 @@
         } catch (e) {}
     }
 
+    async function checkUpdate() {
+        var loadingEl = byId('updateLoadingArea');
+        var resultEl = byId('updateResultArea');
+        var errorEl = byId('updateErrorArea');
+        var btn = byId('checkUpdateBtn');
+
+        if (loadingEl) loadingEl.style.display = '';
+        if (resultEl) resultEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+        if (btn) btn.disabled = true;
+
+        try {
+            var resp = await fetch('/api/sys/update/check', { method: 'GET' });
+            var result = await resp.json();
+
+            if (loadingEl) loadingEl.style.display = 'none';
+
+            if (!result || !result.success) {
+                if (errorEl) {
+                    errorEl.style.display = '';
+                    errorEl.textContent = (result && result.error) ? result.error : t('page.settings.update.status.check_failed', '检查失败');
+                }
+                return;
+            }
+
+            var data = result.data || {};
+            var currentTag = data.currentTag || '-';
+            var isPlaceholder = !currentTag || currentTag === '{tag}' || currentTag.indexOf('{tag}') >= 0;
+            var currentVerEl = byId('updateCurrentVersion');
+            if (currentVerEl) currentVerEl.textContent = isPlaceholder ? t('page.settings.update.self_compiled', '自编译版本') : currentTag;
+
+            if (data.error) {
+                if (errorEl) {
+                    errorEl.style.display = '';
+                    errorEl.textContent = data.error;
+                }
+                return;
+            }
+
+            if (resultEl) resultEl.style.display = '';
+
+            var release = data.release;
+            var latestVerEl = byId('updateLatestVersion');
+            if (latestVerEl) latestVerEl.textContent = release ? (release.tag_name || '-') : '-';
+
+            var publishedAtEl = byId('updatePublishedAt');
+            if (publishedAtEl) {
+                if (release && release.published_at) {
+                    try {
+                        var d = new Date(release.published_at);
+                        publishedAtEl.textContent = d.toLocaleString();
+                    } catch (e) {
+                        publishedAtEl.textContent = release.published_at;
+                    }
+                } else {
+                    publishedAtEl.textContent = '-';
+                }
+            }
+
+            var badgeEl = byId('updateStatusBadge');
+            if (badgeEl) {
+                if (data.hasUpdate) {
+                    badgeEl.textContent = t('page.settings.update.status.update_available', '发现新版本');
+                    badgeEl.className = 'update-status-badge update-available';
+                } else {
+                    badgeEl.textContent = t('page.settings.update.status.up_to_date', '已是最新版本');
+                    badgeEl.className = 'update-status-badge update-up-to-date';
+                }
+            }
+
+            var releaseUrl = byId('updateReleaseUrl');
+            if (releaseUrl && release && release.html_url) {
+                releaseUrl.href = release.html_url;
+                releaseUrl.style.display = '';
+            } else if (releaseUrl) {
+                releaseUrl.style.display = 'none';
+            }
+
+            var bodyEl = byId('updateReleaseBody');
+            if (bodyEl && release && release.body) {
+                var bodyText = release.body;
+                if (bodyText.length > 2000) bodyText = bodyText.substring(0, 2000) + '...';
+                bodyEl.textContent = bodyText;
+            } else if (bodyEl) {
+                bodyEl.textContent = '-';
+            }
+
+        } catch (e) {
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (errorEl) {
+                errorEl.style.display = '';
+                errorEl.textContent = t('common.network_request_failed', '网络请求失败');
+            }
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function init() {
         // Tab switching
         document.querySelectorAll('.settings-tab').forEach(tab => {
@@ -613,6 +711,10 @@
         // Nodes tab
         const nodesTab = document.querySelector('.settings-tab[data-tab="nodes"]');
         if (nodesTab) nodesTab.addEventListener('click', loadNodes);
+
+        // Update tab
+        const checkBtn = byId('checkUpdateBtn');
+        if (checkBtn) checkBtn.addEventListener('click', checkUpdate);
     }
 
     let _initialized = false;

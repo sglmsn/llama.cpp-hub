@@ -584,6 +584,9 @@
                     <button class="settings-tab" data-tab="nodes">
                         <i class="fas fa-network-wired"></i> <span data-i18n="page.settings.tab.nodes">节点</span>
                     </button>
+                    <button class="settings-tab" data-tab="update">
+                        <i class="fas fa-sync-alt"></i> <span data-i18n="page.settings.tab.update">检查更新</span>
+                    </button>
                 </div>
 
                 <div class="settings-content">
@@ -849,6 +852,68 @@
                                 </div>
                                 <div class="settings-toggle-list" id="nodeList"></div>
                                 <div id="nodeEmptyState" class="empty-state" data-i18n="page.settings.nodes.empty">尚未配置远程节点</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: 更新 -->
+                    <div class="settings-tab-panel" data-tab-panel="update">
+                        <div class="settings-panel">
+                            <div class="settings-panel-body">
+                                <div class="update-header-row">
+                                    <div class="update-current-info">
+                                        <span class="update-current-label" data-i18n="page.settings.update.current_version">当前版本</span>
+                                        <span id="updateCurrentVersion" class="update-current-version">-</span>
+                                    </div>
+                                    <button class="btn btn-primary" id="checkUpdateBtn">
+                                        <i class="fas fa-sync-alt"></i> <span data-i18n="page.settings.update.check_btn">检查更新</span>
+                                    </button>
+                                </div>
+
+                                <div id="updateLoadingArea" style="display:none;">
+                                    <div class="update-loading">
+                                        <div class="spinner"></div>
+                                        <span data-i18n="page.settings.update.status.checking">检查中...</span>
+                                    </div>
+                                </div>
+
+                                <div id="updateErrorArea" class="update-error" style="display:none;"></div>
+
+                                <div id="updateResultArea" style="display:none;">
+                                    <div class="update-result-card">
+                                        <div class="update-result-header">
+                                            <div class="update-result-title-group">
+                                                <span class="update-result-icon"><i class="fas fa-tag"></i></span>
+                                                <div>
+                                                    <span class="update-result-label" data-i18n="page.settings.update.latest_version">最新版本</span>
+                                                    <span id="updateLatestVersion" class="update-result-value">-</span>
+                                                </div>
+                                            </div>
+                                            <div id="updateStatusBadge" class="update-status-badge"></div>
+                                        </div>
+                                        <div class="update-result-meta">
+                                            <div class="update-meta-item">
+                                                <i class="far fa-calendar-alt"></i>
+                                                <span class="update-meta-label" data-i18n="page.settings.update.published_at">发布时间</span>
+                                                <span id="updatePublishedAt">-</span>
+                                            </div>
+                                        </div>
+                                        <div class="update-result-actions">
+                                            <a id="updateReleaseUrl" href="#" target="_blank" rel="noopener" class="update-release-link" style="display:none;">
+                                                <i class="fas fa-external-link-alt"></i>
+                                                <span data-i18n="page.settings.update.view_release">查看 Release 页面</span>
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <div class="update-release-notes">
+                                        <div class="update-release-notes-header">
+                                            <i class="fas fa-clipboard-list"></i>
+                                            <span data-i18n="page.settings.update.release_notes">更新日志</span>
+                                        </div>
+                                        <div id="updateReleaseBody" class="update-release-body"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

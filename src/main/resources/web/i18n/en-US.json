@@ -927,5 +927,18 @@
   "confirm.node.delete": "Delete node \"{nodeId}\"?",
   "report.cache_label": "Cache",
   "report.total_cache": "Total Cache Hit Tokens",
-  "report.cache_tokens": "Cache"
+  "report.cache_tokens": "Cache",
+
+  "page.settings.tab.update": "Updates",
+  "page.settings.update.current_version": "Current Version",
+  "page.settings.update.check_btn": "Check for Updates",
+  "page.settings.update.latest_version": "Latest Version",
+  "page.settings.update.published_at": "Published",
+  "page.settings.update.view_release": "View Release Page",
+  "page.settings.update.release_notes": "Release Notes",
+  "page.settings.update.status.up_to_date": "Up to date",
+  "page.settings.update.status.update_available": "Update available",
+  "page.settings.update.status.check_failed": "Check failed",
+  "page.settings.update.status.checking": "Checking...",
+  "page.settings.update.self_compiled": "Self-compiled"
 }

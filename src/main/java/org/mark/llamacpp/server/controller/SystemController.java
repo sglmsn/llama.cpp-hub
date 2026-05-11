@@ -25,6 +25,7 @@ import org.mark.llamacpp.server.service.ModelSamplingService;
 import org.mark.llamacpp.server.struct.ApiResponse;
 import org.mark.llamacpp.server.tools.JsonUtil;
 import org.mark.llamacpp.server.tools.ParamTool;
+import org.mark.llamacpp.update.GitHubTagFetcherNative;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,6 +155,11 @@ public class SystemController implements BaseController {
 			return true;
 		}
 		
+		// 检查更新
+		if (uri.startsWith("/api/sys/update/check")) {
+			this.handleUpdateCheckRequest(ctx, request);
+			return true;
+		}
 		
 		return false;
 	}
@@ -1036,6 +1042,36 @@ public class SystemController implements BaseController {
 		return port > 0 && port <= 65535;
 	}
 	
+	
+	
+	/**
+	 * 	检查更新
+	 */
+	private void handleUpdateCheckRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		if (request.method() == HttpMethod.OPTIONS) {
+			LlamaServer.sendCorsResponse(ctx);
+			return;
+		}
+		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
+		try {
+			GitHubTagFetcherNative fetcher = new GitHubTagFetcherNative();
+			GitHubTagFetcherNative.CheckResult result = fetcher.check();
+
+			Map<String, Object> data = new HashMap<>();
+			data.put("currentTag", GitHubTagFetcherNative.getCurrentTag());
+			data.put("hasUpdate", result.isHasUpdate());
+			if (result.isSuccess() && result.getRelease() != null) {
+				data.put("release", result.getRelease());
+			}
+			if (!result.isSuccess()) {
+				data.put("error", result.getError());
+			}
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
+		} catch (Exception e) {
+			logger.info("检查更新时发生错误", e);
+			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("检查更新失败: " + e.getMessage()));
+		}
+	}
 	
 	/**
 	 * 处理停止服务请求
