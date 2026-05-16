@@ -400,6 +400,23 @@ public class SystemController implements BaseController {
 		}
 		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
 		try {
+			Map<String, String> params = ParamTool.getQueryParam(request.uri());
+			String nodeId = params.get("nodeId");
+			if (nodeId != null && !nodeId.isBlank() && !"local".equals(nodeId)) {
+				NodeManager.HttpResult result = NodeManager.getInstance().callRemoteApi(
+						nodeId, "GET", "api/sys/gpu/status", null);
+				if (result.isSuccess()) {
+					JsonObject remoteResp = JsonUtil.fromJson(result.getBody(), JsonObject.class);
+					if (remoteResp != null && remoteResp.has("data")) {
+						LlamaServer.sendJsonResponse(ctx, ApiResponse.success(remoteResp.get("data")));
+					} else {
+						LlamaServer.sendJsonResponse(ctx, ApiResponse.error("远程节点响应格式错误"));
+					}
+				} else {
+					LlamaServer.sendJsonResponse(ctx, ApiResponse.error("远程节点调用失败: code=" + result.getStatusCode()));
+				}
+				return;
+			}
 			JsonObject status = GpuService.getInstance().queryGpuStatus();
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(status));
 		} catch (Exception e) {
@@ -1339,6 +1356,23 @@ public class SystemController implements BaseController {
 		}
 		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
 		try {
+			Map<String, String> params = ParamTool.getQueryParam(request.uri());
+			String nodeId = params.get("nodeId");
+			if (nodeId != null && !nodeId.isBlank() && !"local".equals(nodeId)) {
+				NodeManager.HttpResult result = NodeManager.getInstance().callRemoteApi(
+						nodeId, "GET", "api/sys/fastfetch", null);
+				if (result.isSuccess()) {
+					JsonObject remoteResp = JsonUtil.fromJson(result.getBody(), JsonObject.class);
+					if (remoteResp != null && remoteResp.has("data")) {
+						LlamaServer.sendJsonResponse(ctx, ApiResponse.success(remoteResp.get("data")));
+					} else {
+						LlamaServer.sendJsonResponse(ctx, ApiResponse.error("远程节点响应格式错误"));
+					}
+				} else {
+					LlamaServer.sendJsonResponse(ctx, ApiResponse.error("远程节点调用失败: code=" + result.getStatusCode()));
+				}
+				return;
+			}
 			FastFetchHelper helper = FastFetchHelper.getInstance();
 			String initErr = helper.init();
 			FastFetchHelper.ComputerInfo cinfo = helper.getInfo();

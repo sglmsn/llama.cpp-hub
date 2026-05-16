@@ -252,6 +252,28 @@
         #main-settings .llamacpp-progress-text { font-size:0.8rem; color:var(--text-secondary); min-width:36px; text-align:right; }
         #main-settings .llamacpp-asset-actions { display:flex; justify-content:flex-end; }
         #main-settings .llamacpp-installed-badge { display:inline-flex; align-items:center; gap:4px; font-size:0.8rem; font-weight:600; color:#10b981; padding:4px 10px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); }
+        /* === Fastfetch Split Layout === */
+        #main-fastfetch .ff-split { display:grid; grid-template-columns:1fr 1fr; gap:12px; height:100%; min-height:0; padding:12px 18px; }
+        #main-fastfetch .ff-panel { display:flex; flex-direction:column; min-height:0; background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,0.06); }
+        #main-fastfetch .ff-panel-header { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border-color); flex-shrink:0; background:var(--sidebar-bg); }
+        #main-fastfetch .ff-panel-header i { color:var(--primary-color); }
+        #main-fastfetch .ff-panel-header span { font-size:13px; font-weight:600; }
+        #main-fastfetch .ff-panel-body { flex:1; min-height:0; overflow:auto; padding:12px; font-family:'Menlo', 'Monaco', 'Courier New', monospace; background:#0f172a; color:#e5e7eb; font-size:0.8rem; }
+        #main-fastfetch .ff-panel-body pre { margin:0; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word; }
+        #main-fastfetch .gpu-tool-block { margin-bottom:10px; }
+        #main-fastfetch .gpu-tool-block:last-child { margin-bottom:0; }
+        #main-fastfetch .gpu-tool-header { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+        #main-fastfetch .gpu-tool-badge { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; }
+        #main-fastfetch .gpu-tool-badge.available { background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); }
+        #main-fastfetch .gpu-tool-badge.unavailable { background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
+        #main-fastfetch .gpu-tool-name { font-size:11px; color:#9ca3af; font-weight:600; }
+        #main-fastfetch .gpu-tool-os { font-size:10px; color:#6b7280; margin-left:auto; }
+        #main-fastfetch .gpu-tool-output { font-size:0.75rem; color:#e5e7eb; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word; padding:8px; background:rgba(0,0,0,0.3); border-radius:6px; border:1px solid rgba(255,255,255,0.06); line-height:1.4; }
+        #main-fastfetch .gpu-empty { text-align:center; color:#6b7280; padding:24px; font-size:12px; }
+        #main-fastfetch .ff-refresh-all { display:flex; align-items:center; gap:8px; margin-left:auto; }
+        @media (max-width:960px) {
+            #main-fastfetch .ff-split { grid-template-columns:1fr; }
+        }
     </style>
 </head>
 <body>
@@ -285,10 +307,6 @@
                 <i class="fas fa-search"></i>
                 <span data-i18n="nav.hf">nav.hf</span>
             </a>
-            <!-- <a href="#" class="nav-item" id="nav-device-status" onclick="showDeviceStatus(); return false;">
-                <i class="fas fa-memory"></i>
-                <span data-i18n="nav.device_status">nav.device_status</span>
-            </a> -->
             <a href="#" class="nav-item" id="nav-console" onclick="showConsolePage(); return false;">
                 <i class="fas fa-terminal"></i>
                 <span data-i18n="nav.console">nav.console</span>
@@ -309,11 +327,6 @@
                 <i class="fas fa-cog"></i>
                 <span data-i18n="nav.settings">nav.settings</span>
             </a>
-<!--             <div style="flex: 1"></div> -->
-<!--              <a href="#" class="nav-item danger" onclick="shutdownService(); return false;"> -->
-<!--                 <i class="fas fa-power-off"></i> -->
-<!--                 <span data-i18n="nav.shutdown">nav.shutdown</span> -->
-<!--             </a> -->
         </nav>
         <div class="sidebar-footer">
             <div class="sidebar-quick-links">
@@ -1031,38 +1044,43 @@
         </div>
     </main>
 
-    <main class="main-area" id="main-device-status" style="display: none">
-        <div class="top-bar">
-            <h1 class="page-title"><i class="fas fa-memory"></i> <span data-i18n="page.device_status.title">page.device_status.title</span></h1>
-            <div class="top-actions" style="display:flex; align-items:center; gap:12px;">
-                <button class="btn btn-secondary" id="refreshDeviceStatusBtn" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
-                <div id="deviceStatusText" style="font-size:12px; color:var(--text-secondary); margin-left:auto;"></div>
-            </div>
-        </div>
-
-        <div class="content-scrollable" style="padding: 0;">
-            <div id="deviceStatusContainer" style="height: 100%; overflow:auto; padding:16px; font-family:'Menlo', 'Monaco', 'Courier New', monospace; background:#0f172a; color:#e5e7eb; font-size: 0.875rem;">
-                <pre id="deviceStatusContent" style="margin:0; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;"></pre>
-            </div>
-        </div>
-    </main>
-
     <main class="main-area" id="main-fastfetch" style="display: none">
         <div class="top-bar">
             <h1 class="page-title"><i class="fas fa-microchip"></i> <span data-i18n="page.fastfetch.title">page.fastfetch.title</span></h1>
             <div class="top-actions" style="display:flex; align-items:center; gap:12px;">
-                <button class="btn btn-secondary" id="refreshFastfetchBtn" onclick="fetchFastFetch()" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
+                <button class="btn btn-secondary" id="refreshFastfetchBtn" onclick="refreshFastFetchAll()" title="common.refresh" data-i18n="common.refresh" data-i18n-attr="title">
                     <i class="fas fa-sync-alt"></i>
                 </button>
                 <div id="fastfetchStatusText" style="font-size:12px; color:var(--text-secondary); margin-left:auto;"></div>
             </div>
         </div>
 
-        <div class="content-scrollable" style="padding: 0;">
-            <div id="fastfetchContainer" style="height: 100%; overflow:auto; padding:16px; font-family:'Menlo', 'Monaco', 'Courier New', monospace; background:#0f172a; color:#e5e7eb; font-size: 0.875rem;">
-                <pre id="fastfetchContent" style="margin:0; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;"></pre>
+        <div class="console-tab-bar" id="fastfetchTabs">
+            <button class="console-tab-btn active" data-tab="local" data-i18n="page.console.tab_local">page.console.tab_local</button>
+        </div>
+        <div class="console-tab-container" id="fastfetchTabContainer" style="margin:0;">
+            <div class="console-tab-panel active" data-panel="local">
+                <div class="ff-split">
+                    <div class="ff-panel">
+                        <div class="ff-panel-header">
+                            <i class="fas fa-desktop"></i>
+                            <span data-i18n="page.fastfetch.device_overview">page.fastfetch.device_overview</span>
+                        </div>
+                        <div class="ff-panel-body">
+                            <pre id="fastfetchContent" style="margin:0; white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;"></pre>
+                        </div>
+                    </div>
+                    <div class="ff-panel">
+                        <div class="ff-panel-header">
+                            <i class="fas fa-microchip"></i>
+                            <span data-i18n="page.fastfetch.gpu_status">page.fastfetch.gpu_status</span>
+                            <div id="gpuStatusText" style="font-size:11px; color:#6b7280; margin-left:auto;"></div>
+                        </div>
+                        <div class="ff-panel-body" id="gpuContent">
+                            <div class="gpu-empty" data-i18n="page.fastfetch.gpu_loading">page.fastfetch.gpu_loading</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -2739,12 +2757,10 @@
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = 'none';
             //stopConsoleAuto();
-            stopDeviceStatusAuto();
             //refreshModels();
             // 更新导航项高亮
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
@@ -2790,11 +2806,9 @@
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = '';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = 'none';
-            stopDeviceStatusAuto();
             openConsoleModal();
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
             navItems.forEach(item => item.classList.remove('active'));
@@ -2809,12 +2823,10 @@
             document.getElementById('main-hf').style.display = '';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = 'none';
             //stopConsoleAuto();
-            stopDeviceStatusAuto();
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
             navItems.forEach(item => item.classList.remove('active'));
             const nav = document.getElementById('nav-hf');
@@ -2827,12 +2839,10 @@
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-settings').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = 'none';
             //stopConsoleAuto();
-            stopDeviceStatusAuto();
             const main = document.getElementById('main-download');
             const hasEntered = main && main.dataset && main.dataset.entered === '1';
             if (main) main.style.display = '';
@@ -2850,12 +2860,10 @@
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = 'none';
             //stopConsoleAuto();
-            stopDeviceStatusAuto();
             const main = document.getElementById('main-settings');
             if (main) main.style.display = '';
 
@@ -2869,85 +2877,16 @@
             }
         }
 
-        // Device status polling
-        let deviceStatusTimer = null;
-
-        function stopDeviceStatusAuto() {
-            if (deviceStatusTimer) {
-                clearInterval(deviceStatusTimer);
-                deviceStatusTimer = null;
-            }
-        }
-
-        function fetchDeviceStatus() {
-            const statusEl = document.getElementById('deviceStatusText');
-            const contentEl = document.getElementById('deviceStatusContent');
-            if (statusEl) statusEl.textContent = '加载中...';
-            fetch('/api/sys/gpu/status')
-                .then(r => r.json())
-                .then(data => {
-                    const timestamp = new Date().toLocaleTimeString();
-                    let rawLines = [];
-                    const gpuData = data.data || data;
-                    if (gpuData.gpus && Array.isArray(gpuData.gpus)) {
-                        for (const gpu of gpuData.gpus) {
-                            rawLines.push(`[${timestamp}] ${gpu.vendor || 'unknown'}:`);
-                            rawLines.push(gpu.rawOutput || '(no output)');
-                        }
-                    }
-                    if (contentEl) {
-                        contentEl.textContent = rawLines.join('\n') || '(no GPU data)';
-                    }
-                    if (statusEl) statusEl.textContent = `已更新 · ${timestamp}`;
-                    const container = document.getElementById('deviceStatusContainer');
-                    if (container) container.scrollTop = container.scrollHeight;
-                })
-                .catch(e => {
-                    if (statusEl) statusEl.textContent = '加载失败';
-                    const contentEl = document.getElementById('deviceStatusContent');
-                    if (contentEl) {
-                        const timestamp = new Date().toLocaleTimeString();
-                        contentEl.textContent += `[${timestamp}] 错误: 无法获取设备状态\n`;
-                    }
-                });
-        }
-
-        function showDeviceStatus() {
-            document.getElementById('main-model-list').style.display = 'none';
-            document.getElementById('main-settings').style.display = 'none';
-            document.getElementById('main-hf').style.display = 'none';
-            document.getElementById('main-download').style.display = 'none';
-            document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = '';
-            document.getElementById('main-benchmark-v3').style.display = 'none';
-            document.getElementById('main-usage-report').style.display = 'none';
-            document.getElementById('main-fastfetch').style.display = 'none';
-            //stopConsoleAuto();
-            const contentEl = document.getElementById('deviceStatusContent');
-            if (contentEl) contentEl.textContent = '';
-            fetchDeviceStatus();
-            stopDeviceStatusAuto();
-            deviceStatusTimer = setInterval(fetchDeviceStatus, 1000);
-            const refreshBtn = document.getElementById('refreshDeviceStatusBtn');
-            if (refreshBtn) refreshBtn.onclick = fetchDeviceStatus;
-            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
-            navItems.forEach(item => item.classList.remove('active'));
-            const nav = document.getElementById('nav-device-status');
-            if (nav) nav.classList.add('active');
-        }
-
         function showBenchmarkV3() {
             document.getElementById('main-model-list').style.display = 'none';
             document.getElementById('main-settings').style.display = 'none';
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = '';
             //stopConsoleAuto();
-            stopDeviceStatusAuto();
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
             navItems.forEach(item => item.classList.remove('active'));
             const nav = document.getElementById('nav-benchmark-v3');
@@ -2955,17 +2894,30 @@
             if (typeof initServerTab === 'function') initServerTab();
         }
 
-        function fetchFastFetch() {
-            const statusEl = document.getElementById('fastfetchStatusText');
-            const contentEl = document.getElementById('fastfetchContent');
+        function getActiveFastFetchNodeId() {
+            var tabBar = document.getElementById('fastfetchTabs');
+            if (!tabBar) return null;
+            var activeBtn = tabBar.querySelector('.console-tab-btn.active');
+            if (!activeBtn) return null;
+            var tab = activeBtn.dataset.tab;
+            return tab === 'local' ? null : tab;
+        }
+
+        function fetchFastFetch(nodeId) {
+            var id = nodeId || '';
+            var suffix = id ? '-' + id : '';
+            var statusEl = document.getElementById('fastfetchStatusText' + suffix);
+            var contentEl = document.getElementById('fastfetchContent' + suffix);
             if (statusEl) statusEl.textContent = '加载中...';
-            fetch('/api/sys/fastfetch')
+            var url = '/api/sys/fastfetch';
+            if (nodeId) url += '?nodeId=' + encodeURIComponent(nodeId);
+            fetch(url)
                 .then(r => r.json())
                 .then(data => {
-                    const timestamp = new Date().toLocaleTimeString();
-                    const raw = data && data.data && data.data.rawOutput;
-                    const error = data && data.data && data.data.error;
-                    const available = data && data.data && data.data.available;
+                    var timestamp = new Date().toLocaleTimeString();
+                    var raw = data && data.data && data.data.rawOutput;
+                    var error = data && data.data && data.data.error;
+                    var available = data && data.data && data.data.available;
                     if (contentEl) {
                         if (!available || error) {
                             contentEl.textContent = 'Fastfetch 不可用: ' + (error || 'unknown error');
@@ -2976,16 +2928,122 @@
                         }
                     }
                     if (statusEl) statusEl.textContent = '已更新 · ' + timestamp;
-                    const container = document.getElementById('fastfetchContainer');
-                    if (container) container.scrollTop = container.scrollHeight;
                 })
                 .catch(e => {
                     if (statusEl) statusEl.textContent = '加载失败';
-                    const contentEl = document.getElementById('fastfetchContent');
                     if (contentEl) {
                         contentEl.textContent = '错误: 无法获取系统信息 - ' + e.message;
                     }
                 });
+        }
+
+        function fetchGpuStatus(nodeId) {
+            var id = nodeId || '';
+            var suffix = id ? '-' + id : '';
+            var statusEl = document.getElementById('gpuStatusText' + suffix);
+            var container = document.getElementById('gpuContent' + suffix);
+            if (statusEl) statusEl.textContent = '加载中...';
+            var url = '/api/sys/gpu/status';
+            if (nodeId) url += '?nodeId=' + encodeURIComponent(nodeId);
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    var timestamp = new Date().toLocaleTimeString();
+                    var gpuData = data && data.data;
+                    if (container) {
+                        if (!gpuData) {
+                            container.innerHTML = '<div class="gpu-empty">获取GPU状态失败</div>';
+                        } else {
+                            container.innerHTML = renderGpuStatus(gpuData);
+                        }
+                    }
+                    if (statusEl) statusEl.textContent = '已更新 · ' + timestamp;
+                })
+                .catch(e => {
+                    if (statusEl) statusEl.textContent = '加载失败';
+                    if (container) {
+                        container.innerHTML = '<div class="gpu-empty">错误: 无法获取GPU状态 - ' + e.message + '</div>';
+                    }
+                });
+        }
+
+        function renderGpuStatus(d) {
+            var nvidia = d['nvidia-smi'] || {};
+            var amd = d['amd-smi'] || {};
+            var hasAny = nvidia.available || amd.available;
+            if (!hasAny) {
+                return '<div class="gpu-empty">未检测到支持的 GPU（nvidia-smi / amd-smi 均不可用）</div>';
+            }
+            var html = '<div style="font-size:11px;color:#6b7280;margin-bottom:8px;">OS: ' + escapeHtml(d.os || 'unknown') + '</div>';
+            if (nvidia) {
+                html += renderGpuToolBlock('nvidia-smi', nvidia);
+            }
+            if (amd) {
+                html += renderGpuToolBlock('amd-smi', amd);
+            }
+            return html;
+        }
+
+        function renderGpuToolBlock(name, info) {
+            var avail = !!info.available;
+            var badgeCls = avail ? 'available' : 'unavailable';
+            var badgeText = avail ? '可用' : '不可用';
+            var html = '<div class="gpu-tool-block">';
+            html += '<div class="gpu-tool-header">';
+            html += '<span class="gpu-tool-badge ' + badgeCls + '">' + badgeText + '</span>';
+            html += '<span class="gpu-tool-name">' + escapeHtml(name) + '</span>';
+            html += '</div>';
+            if (avail && info.output) {
+                html += '<div class="gpu-tool-output">' + escapeHtml(info.output) + '</div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function refreshFastFetchAll() {
+            var nodeId = getActiveFastFetchNodeId();
+            fetchFastFetch(nodeId);
+            fetchGpuStatus(nodeId);
+        }
+
+        function initFastFetchTabs() {
+            var tabBar = document.getElementById('fastfetchTabs');
+            var container = document.getElementById('fastfetchTabContainer');
+            if (!tabBar || !container) return;
+            if (tabBar._initialized) return;
+            tabBar._initialized = true;
+
+            var nodes = window.remoteNodes || [];
+            nodes.forEach(function (node) {
+                if (node.enabled === false) return;
+                var nid = node.nodeId;
+                var label = node.name || nid;
+
+                var tab = document.createElement('button');
+                tab.className = 'console-tab-btn';
+                tab.dataset.tab = nid;
+                tab.textContent = label;
+                tabBar.appendChild(tab);
+
+                var panel = document.createElement('div');
+                panel.className = 'console-tab-panel';
+                panel.dataset.panel = nid;
+                var t = window.I18N && window.I18N.t || function (k, f) { return f || k; };
+                panel.innerHTML = '<div class="ff-split"><div class="ff-panel"><div class="ff-panel-header"><i class="fas fa-desktop"></i><span>' + t('page.fastfetch.device_overview', 'page.fastfetch.device_overview') + '</span></div><div class="ff-panel-body"><pre id="fastfetchContent-' + nid + '" style="margin:0;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;"></pre></div></div><div class="ff-panel"><div class="ff-panel-header"><i class="fas fa-microchip"></i><span>' + t('page.fastfetch.gpu_status', 'page.fastfetch.gpu_status') + '</span><div id="gpuStatusText-' + nid + '" style="font-size:11px;color:#6b7280;margin-left:auto;"></div></div><div class="ff-panel-body" id="gpuContent-' + nid + '"><div class="gpu-empty">' + t('page.fastfetch.gpu_loading', 'page.fastfetch.gpu_loading') + '</div></div></div></div>';
+                container.appendChild(panel);
+            });
+
+            tabBar.addEventListener('click', function (e) {
+                var btn = e.target.closest('.console-tab-btn');
+                if (!btn) return;
+                tabBar.querySelectorAll('.console-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                var id = btn.dataset.tab;
+                container.querySelectorAll('.console-tab-panel').forEach(function (p) {
+                    p.classList.toggle('active', p.dataset.panel === id);
+                });
+                refreshFastFetchAll();
+            });
         }
 
         function showFastFetchPage() {
@@ -2994,16 +3052,25 @@
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = 'none';
             document.getElementById('main-fastfetch').style.display = '';
-            const contentEl = document.getElementById('fastfetchContent');
+            initFastFetchTabs();
+            var contentEl = document.getElementById('fastfetchContent');
             if (contentEl) contentEl.textContent = '';
-            fetchFastFetch();
-            const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+            var gpuEl = document.getElementById('gpuContent');
+            if (gpuEl) gpuEl.innerHTML = '<div class="gpu-empty">' + (window.I18N ? window.I18N.t('page.fastfetch.gpu_loading', 'page.fastfetch.gpu_loading') : 'page.fastfetch.gpu_loading') + '</div>';
+            refreshFastFetchAll();
+            var nodes = window.remoteNodes || [];
+            nodes.forEach(function (n) {
+                if (n.enabled !== false && n.nodeId) {
+                    fetchFastFetch(n.nodeId);
+                    fetchGpuStatus(n.nodeId);
+                }
+            });
+            var navItems = document.querySelectorAll('.sidebar-nav .nav-item');
             navItems.forEach(item => item.classList.remove('active'));
-            const nav = document.getElementById('nav-fastfetch');
+            var nav = document.getElementById('nav-fastfetch');
             if (nav) nav.classList.add('active');
         }
 
@@ -3013,12 +3080,10 @@
             document.getElementById('main-hf').style.display = 'none';
             document.getElementById('main-download').style.display = 'none';
             document.getElementById('main-console').style.display = 'none';
-            document.getElementById('main-device-status').style.display = 'none';
             document.getElementById('main-benchmark-v3').style.display = 'none';
             document.getElementById('main-usage-report').style.display = '';
             document.getElementById('main-fastfetch').style.display = 'none';
             //stopConsoleAuto();
-            stopDeviceStatusAuto();
             const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
             navItems.forEach(item => item.classList.remove('active'));
             const nav = document.getElementById('nav-usage-report');
