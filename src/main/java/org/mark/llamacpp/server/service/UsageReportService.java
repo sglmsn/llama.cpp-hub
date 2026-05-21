@@ -97,6 +97,7 @@ public class UsageReportService {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		result.sort((a, b) -> Long.compare(b.getStartTime(), a.getStartTime()));
 		return result;
 	}
 
