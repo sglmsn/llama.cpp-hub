@@ -1024,33 +1024,64 @@
        }
      }
 
-    // ── Streaming Text Render（增量追加 TextNode，避免每 token innerHTML 全量替换）──
-    const streamingTextCache = new WeakMap();
+    // ── Streaming Markdown Render（混合追加：先渲染 markdown，新 token 以 TextNode 追加，定期重渲染）──
+    const STREAMING_RENDER_CHAR_THRESHOLD = 50;
+    const STREAMING_RENDER_MS_THRESHOLD = 500;
+    const streamingRenderCache = new WeakMap();
 
-    function appendStreamingText(target, fullText) {
-      if (!target) return;
-      const existingTextNode = streamingTextCache.get(target);
-      if (!existingTextNode) {
-        target.innerHTML = '';
-        target.style.whiteSpace = 'pre-wrap';
-        target.style.wordBreak = 'break-word';
-        const textNode = document.createTextNode(fullText);
-        target.appendChild(textNode);
-        streamingTextCache.set(target, textNode);
-        return;
-      }
-      const currentLen = existingTextNode.textContent.length;
-      if (fullText.length > currentLen) {
-        existingTextNode.appendData(fullText.slice(currentLen));
-      }
+    function getStreamingState(target) {
+      return streamingRenderCache.get(target) || null;
     }
 
     function clearStreamingCache(target) {
-      if (target) {
-        streamingTextCache.delete(target);
-        target.style.removeProperty('white-space');
-        target.style.removeProperty('word-break');
+      if (!target) return;
+      streamingRenderCache.delete(target);
+      target.style.removeProperty('white-space');
+      target.style.removeProperty('word-break');
+    }
+
+    function renderStreamingMarkdown(target, fullText) {
+      if (!target) return;
+      const full = String(fullText || '');
+      let state = getStreamingState(target);
+
+      if (!state) {
+        target.innerHTML = renderMarkdown(full);
+        const textNode = document.createTextNode('');
+        target.appendChild(textNode);
+        streamingRenderCache.set(target, { totalLen: full.length, renderedLen: full.length, textNode, lastRenderMs: Date.now() });
+        return;
       }
+
+      const delta = full.slice(state.totalLen);
+      if (!delta) return;
+
+      state.textNode.appendData(delta);
+      state.totalLen = full.length;
+
+      const now = Date.now();
+      const pendingLen = full.length - state.renderedLen;
+      const shouldRerender = pendingLen >= STREAMING_RENDER_CHAR_THRESHOLD
+        || (now - state.lastRenderMs) >= STREAMING_RENDER_MS_THRESHOLD
+        || delta.includes('```');
+
+      if (!shouldRerender) return;
+
+      target.innerHTML = renderMarkdown(full);
+      state.textNode.textContent = '';
+      target.appendChild(state.textNode);
+      state.renderedLen = full.length;
+      state.lastRenderMs = now;
+    }
+
+    function finalizeStreaming(target, fullText, role) {
+      if (!target) return;
+      clearStreamingCache(target);
+      renderRichText(target, String(fullText || ''), { isStreaming: false, role: role || 'assistant' });
+    }
+
+    function appendStreamingText(target, fullText) {
+      renderStreamingMarkdown(target, fullText);
     }
 
     function nowTime() {
@@ -3502,10 +3533,9 @@
         reasoningBody.classList.toggle('hidden', !!message.reasoningCollapsed);
         if (!message.reasoningCollapsed) {
           if (message.isStreaming) {
-            appendStreamingText(reasoningBody, message.reasoning || '');
+            renderStreamingMarkdown(reasoningBody, message.reasoning || '');
           } else {
-            clearStreamingCache(reasoningBody);
-            renderRichText(reasoningBody, message.reasoning, { isStreaming: false, role: message.role });
+            finalizeStreaming(reasoningBody, message.reasoning || '', message.role);
           }
         }
       } else if (reasoningBox) {
@@ -3520,10 +3550,9 @@
           bubble.appendChild(contentDiv);
         }
         if (message.isStreaming) {
-          appendStreamingText(contentDiv, message.content || '');
+          renderStreamingMarkdown(contentDiv, message.content || '');
         } else {
-          clearStreamingCache(contentDiv);
-          renderRichText(contentDiv, message.content || '', { isStreaming: false, role: message.role });
+          finalizeStreaming(contentDiv, message.content || '', message.role);
         }
       } else if (contentDiv) {
         contentDiv.remove();
