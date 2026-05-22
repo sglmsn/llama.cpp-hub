@@ -1293,9 +1293,9 @@ public class LlamaServerManager {
 			sb.append(" --slot-save-path ");
 			sb.append(ParamTool.quoteIfNeeded(LlamaServer.getCachePath().toFile().getAbsolutePath()));
 		}
-		if (!cmdHasFlag(allArgs, "--cache-ram")) {
-			sb.append(" --cache-ram -1");
-		}
+		//if (!cmdHasFlag(allArgs, "--cache-ram")) {
+			//sb.append(" --cache-ram -1");
+		//}
 		if (!cmdHasFlag(allArgs, "--alias")) {
 			String alias = targetModel.getAlias();
 			if (alias == null || alias.trim().isEmpty()) {
