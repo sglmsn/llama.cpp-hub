@@ -1057,11 +1057,10 @@ public class LlamaServerManager {
 			process.setOnProcessExited(info -> {
 				logger.info("模型进程退出事件: modelId={}, exitCode={}, unexpected={}", modelId, info.exitCode, info.unexpected);
 				if (latchResolved.compareAndSet(false, true)) {
-					if (info.unexpected) {
-						logger.warn("模型进程意外退出 (exitCode={}): {}", info.exitCode, modelId);
-						loadSuccess.set(false);
-						latch.countDown();
-					}
+					// 加载期间进程退出 = 加载失败（不论 unexpected 标志）
+					logger.warn("模型进程在加载期间退出 (exitCode={}): {}", info.exitCode, modelId);
+					loadSuccess.set(false);
+					latch.countDown();
 				} else {
 					if (info.unexpected) {
 						logger.warn("已加载的模型进程意外崩溃 (exitCode={}): {}", info.exitCode, modelId);
@@ -1199,6 +1198,8 @@ public class LlamaServerManager {
 
 	private static boolean isModelErrorLine(String lower) {
 		return lower.contains("exiting due to model loading error")
+			|| lower.contains("exiting due to http server error")
+			|| lower.contains("error while handling")
 			|| lower.contains("failed to load model")
 			|| lower.contains("error: failed to load")
 			|| lower.contains("error: model loading")
