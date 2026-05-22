@@ -1323,7 +1323,6 @@ public class LlamaServerManager {
 			String e = extraParams.trim();
 			allArgs = allArgs.isEmpty() ? e : (allArgs + " " + e);
 		}
-
 		String exeName = isWindows() ? "llama-server.exe" : "llama-server";
 		String exe = Paths.get(llamaBinPath, exeName).toString();
 		sb.append(ParamTool.quoteIfNeeded(exe));
@@ -1364,11 +1363,13 @@ public class LlamaServerManager {
 
 		if (cmd != null && !cmd.trim().isEmpty()) {
 			String processed = splitSpecType(cmd.trim());
+			processed = ParamTool.stripFlagWithValue(processed, "--alias");
 			sb.append(' ');
 			sb.append(processed);
 		}
 		if (extraParams != null && !extraParams.trim().isEmpty()) {
 			String processed = splitSpecType(extraParams.trim());
+			processed = ParamTool.stripFlagWithValue(processed, "--alias");
 			sb.append(' ');
 			sb.append(processed);
 		}
@@ -1390,13 +1391,11 @@ public class LlamaServerManager {
 		//if (!cmdHasFlag(allArgs, "--cache-ram")) {
 			//sb.append(" --cache-ram -1");
 		//}
-		if (!cmdHasFlag(allArgs, "--alias")) {
-			String alias = targetModel.getAlias();
-			if (alias == null || alias.trim().isEmpty()) {
-				alias = targetModel.getModelId();
-			}
-			sb.append(" --alias ").append(ParamTool.quoteIfNeeded(alias));
+		String alias = targetModel.getAlias();
+		if (alias == null || alias.trim().isEmpty()) {
+			alias = targetModel.getModelId();
 		}
+		sb.append(" --alias ").append(ParamTool.quoteIfNeeded(alias));
 		
 		sb.append(" --timeout 36000");
 		// 允许任意IP地址访问
