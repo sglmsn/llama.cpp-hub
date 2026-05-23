@@ -14,8 +14,18 @@
     let dailyHoverIdx = -1;
 
     function t(key, fallback) {
-        if (typeof window.t === 'function') return window.t(key, fallback);
+        if (window.I18N && typeof window.I18N.t === 'function') return window.I18N.t(key, fallback);
         return fallback || key;
+    }
+
+    function tf(key, params, fallback) {
+        const template = t(key, fallback);
+        if (!params || template == null) return template;
+        let out = String(template);
+        for (const k of Object.keys(params)) {
+            out = out.split('{' + k + '}').join(String(params[k]));
+        }
+        return out;
     }
 
     function toast(title, msg, type) {
@@ -74,10 +84,11 @@
 
         // Populate months
         monthSel.innerHTML = '';
+        const monthSuffix = t('page.usage_report.chart.month_suffix', '月');
         for (let m = 1; m <= 12; m++) {
             const opt = document.createElement('option');
             opt.value = m;
-            opt.textContent = m + '月';
+            opt.textContent = m + monthSuffix;
             monthSel.appendChild(opt);
         }
 
@@ -87,10 +98,11 @@
             const result = await resp.json();
             if (result && result.success && Array.isArray(result.data)) {
                 yearSel.innerHTML = '';
+                const yearSuffix = t('page.usage_report.chart.year_suffix', '年');
                 for (const y of result.data) {
                     const opt = document.createElement('option');
                     opt.value = y;
-                    opt.textContent = y + '年';
+                    opt.textContent = y + yearSuffix;
                     yearSel.appendChild(opt);
                 }
             }
@@ -112,7 +124,7 @@
     function updateDailyTitle(year, month) {
         const titleEl = document.getElementById('dailyChartTitle');
         if (titleEl) {
-            titleEl.textContent = year + '年' + month + '月用量';
+            titleEl.textContent = tf('page.usage_report.chart.daily_title', { year: String(year), month: String(month) }, year + '年' + month + '月用量');
         }
     }
 
@@ -209,14 +221,14 @@
         // legend
         ctx.font = '10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
         ctx.fillStyle = colors[0]; ctx.fillRect(w - 92, 2, 9, 9);
-        ctx.fillStyle = tc; ctx.fillText('Prompt', w - 79, 1);
+        ctx.fillStyle = tc; ctx.fillText(t('report.prompt_label', '输入'), w - 79, 1);
         ctx.fillStyle = colors[1]; ctx.fillRect(w - 42, 2, 9, 9);
-        ctx.fillStyle = tc; ctx.fillText('Predicted', w - 29, 1);
+        ctx.fillStyle = tc; ctx.fillText(t('report.output_label', '输出'), w - 29, 1);
 
         // tooltip
         if (hoverIdx >= 0 && hoverIdx < count) {
             const b = bars[hoverIdx];
-            const lines = [b.label, 'Prompt: ' + b.promptVal.toLocaleString(), 'Predicted: ' + b.predictedVal.toLocaleString()];
+            const lines = [b.label, t('report.prompt_label', '输入') + ': ' + b.promptVal.toLocaleString(), t('report.output_label', '输出') + ': ' + b.predictedVal.toLocaleString()];
             ctx.font = '11px sans-serif';
             const lineH = 15;
             const padX = 8, padY = 5;
