@@ -1280,10 +1280,14 @@ public class LlamaServerManager {
 			|| lower.contains("segfault")
 			|| lower.contains("segmentation fault")
 			|| lower.contains("signal 11")
+			|| lower.contains("signal 6")
 			|| lower.contains("cannot allocate")
 			|| lower.contains("out of memory")
 			|| lower.contains("cuda error")
 			|| lower.contains("hip error")
+			|| lower.contains("ggml_assert")
+			|| lower.contains("ggml_abort")
+			|| (lower.contains("assertion") && lower.contains("failed"))
 			|| (lower.contains("error") && lower.contains("initialize"))
 			|| (lower.contains("error") && lower.contains("context"));
 	}
