@@ -245,19 +245,13 @@ jobs:
                   local extra_url="https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${extra_asset}"
                   echo "[$backend] 尝试下载附加依赖: $extra_url"
                   if curl -fL -o "$extra_asset" "$extra_url"; then
-                    mkdir -p "${out_dir}-tmp-extra"
-                    unzip -q "$extra_asset" -d "${out_dir}-tmp-extra"
+                    local extra_out_dir="${extra_asset%.*}"
+                    mkdir -p "$extra_out_dir"
+                    unzip -q "$extra_asset" -d "$extra_out_dir"
                     rm -f "$extra_asset"
-                    local extra_inner
-                    extra_inner=$(find "${out_dir}-tmp-extra" -maxdepth 1 -mindepth 1 -type d | head -1 || true)
-                    shopt -s dotglob
-                    if [ -n "$extra_inner" ]; then
-                      mv "$extra_inner"/* "$out_dir"/
-                    else
-                      mv "${out_dir}-tmp-extra"/* "$out_dir"/ || true
-                    fi
-                    shopt -u dotglob
-                    rm -rf "${out_dir}-tmp-extra"
+                    flatten_one_level_dir "$extra_out_dir"
+                    local extra_dir_var="${backend}_CUDART_DIR"
+                    echo "${extra_dir_var}=$extra_out_dir" >> $GITHUB_ENV
                   fi
                 fi
                 echo "${backend}_TAG=$tag" >> $GITHUB_ENV
@@ -320,6 +314,9 @@ jobs:
             cp -r jre-win/jre build-win-cuda12/jre
             mkdir -p build-win-cuda12/llamacpp
             cp -r "${WIN_CUDA12_DIR}" build-win-cuda12/llamacpp/
+            if [ -n "${WIN_CUDA12_CUDART_DIR:-}" ]; then
+              cp -r "${WIN_CUDA12_CUDART_DIR}" build-win-cuda12/llamacpp/
+            fi
             make_zip "build-win-cuda12" "llama.cpp-hub-${VERSION}-${WIN_CUDA12_TAG}-windows-cuda12" "llama.cpp-hub-${VERSION}-${WIN_CUDA12_TAG}-windows-cuda12.zip"
           fi
           if [ "${WIN_CUDA13_AVAILABLE:-0}" = "1" ]; then
@@ -327,6 +324,9 @@ jobs:
             cp -r jre-win/jre build-win-cuda13/jre
             mkdir -p build-win-cuda13/llamacpp
             cp -r "${WIN_CUDA13_DIR}" build-win-cuda13/llamacpp/
+            if [ -n "${WIN_CUDA13_CUDART_DIR:-}" ]; then
+              cp -r "${WIN_CUDA13_CUDART_DIR}" build-win-cuda13/llamacpp/
+            fi
             make_zip "build-win-cuda13" "llama.cpp-hub-${VERSION}-${WIN_CUDA13_TAG}-windows-cuda13" "llama.cpp-hub-${VERSION}-${WIN_CUDA13_TAG}-windows-cuda13.zip"
           fi
           if [ "${WIN_VULKAN_AVAILABLE:-0}" = "1" ]; then
