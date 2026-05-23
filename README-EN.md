@@ -197,7 +197,8 @@ It might get flagged by antivirus software (hello there, 360!). Don't worry — 
 
 1. By default, the program auto-scans the `models/` directory at the root — no need to add it manually
 2. Don't put different models in the same folder. Give each model its own folder. For multimodal models, keep the mmproj file in the same folder too
-3. That's it for now.
+3. **Unique model folder names**: The program uses each model's folder name as its unique identifier (modelId). Avoid having identical folder names under different paths. For example, `D:\Models\Qwen3.6-27B\model.gguf` and `D:\llama.cpp-hub\models\Qwen3.6-27B\aaa.gguf` will cause modelId conflicts and break external client calls. Ensure every model folder name is unique across all search paths.
+4. That's it for now.
 
 ## Guide: Usage Statistics
 
