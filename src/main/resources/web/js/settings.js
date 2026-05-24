@@ -1827,6 +1827,14 @@
         // Update tab
         const checkBtn = byId('checkUpdateBtn');
         if (checkBtn) checkBtn.addEventListener('click', checkUpdate);
+
+        // Sync proxy selects
+        const updateProxy = byId('updateProxySelect');
+        const llamacppProxy = byId('llamacppProxySelect');
+        if (updateProxy && llamacppProxy) {
+            updateProxy.addEventListener('change', function () { llamacppProxy.value = this.value; });
+            llamacppProxy.addEventListener('change', function () { updateProxy.value = this.value; });
+        }
     }
 
     let _initialized = false;
