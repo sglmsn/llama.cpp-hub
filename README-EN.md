@@ -180,6 +180,8 @@ Auto-check GitHub Release → download the update package → unzip and replace.
 5. Pick a model on the page → click Load → go nuts
 6. If it doesn't start, port 8080 might be in use. Make sure it's available before running.
 
+> **Important**: All models are accessible through port 8080 (default). When using external clients, simply point them to this port — no need to check individual llama.cpp process ports!
+
 ---
 
 ## Notes
