@@ -82,20 +82,6 @@ public class UsageReportService {
 		return response;
 	}
 
-	private List<RequestLogEntry> getAllRequestLogs(String modelId) {
-		List<RequestLogEntry> result = new ArrayList<>();
-		try {
-			if (modelId != null && !modelId.isEmpty()) {
-				result.addAll(readModelLogs(modelId, 1, Integer.MAX_VALUE));
-			} else {
-				result.addAll(readAllModelLogs(1, Integer.MAX_VALUE));
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return result;
-	}
-
 	private List<RequestLogEntry> readModelLogs(String modelId, int page, int pageSize) throws IOException {
 		List<RequestLogEntry> result = new ArrayList<>();
 		Path logPath = Paths.get(RECORD_DIR + modelId + ".requests.bin");
@@ -148,6 +134,40 @@ public class UsageReportService {
 		return result.subList(fromIndex, toIndex);
 	}
 
+	private List<RequestLogEntry> readModelLogsByTimeRange(String modelId, long startEpoch, long endEpoch) throws IOException {
+		List<RequestLogEntry> result = new ArrayList<>();
+		if (modelId != null && !modelId.isEmpty()) {
+			result.addAll(readSingleModelLogsByTimeRange(modelId, startEpoch, endEpoch));
+		} else {
+			try (Stream<Path> paths = Files.list(Paths.get(RECORD_DIR))) {
+				List<Path> logFiles = paths.filter(p -> p.toString().endsWith(".requests.bin")).collect(java.util.stream.Collectors.toList());
+				for (Path logPath : logFiles) {
+					String mid = logPath.getFileName().toString().replace(".requests.bin", "");
+					result.addAll(readSingleModelLogsByTimeRange(mid, startEpoch, endEpoch));
+				}
+			}
+		}
+		return result;
+	}
+
+	private List<RequestLogEntry> readSingleModelLogsByTimeRange(String modelId, long startEpoch, long endEpoch) throws IOException {
+		List<RequestLogEntry> result = new ArrayList<>();
+		Path logPath = Paths.get(RECORD_DIR + modelId + ".requests.bin");
+		if (!Files.exists(logPath)) return result;
+		try (BinaryRequestLog log = new BinaryRequestLog(logPath)) {
+			long firstIdx = log.findFirstIndex(startEpoch);
+			if (firstIdx >= log.getRecordCount()) return result;
+			long lastIdx = log.findLastIndex(endEpoch);
+			if (lastIdx < 0) return result;
+			int count = (int) (lastIdx - firstIdx + 1);
+			RequestLogRecord[] records = log.readRecords(firstIdx, count);
+			for (RequestLogRecord r : records) {
+				result.add(toEntry(r, modelId));
+			}
+		}
+		return result;
+	}
+
 	private RequestLogEntry toEntry(RequestLogRecord r, String modelId) {
 		RequestLogEntry entry = new RequestLogEntry();
 		entry.setStartTime(r.startTime);
@@ -179,22 +199,32 @@ public class UsageReportService {
 		LocalDate firstDay = LocalDate.of(year, month, 1);
 		LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
-		List<RequestLogEntry> logs = getAllRequestLogs(modelId);
+		ZoneId zone = ZoneId.systemDefault();
+		long startEpoch = firstDay.atStartOfDay(zone).toInstant().toEpochMilli();
+		long endEpoch = lastDay.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1;
+
+		List<RequestLogEntry> logs;
+		try {
+			logs = readModelLogsByTimeRange(modelId, startEpoch, endEpoch);
+		} catch (IOException e) {
+			e.printStackTrace();
+			logs = new ArrayList<>();
+		}
 		if (logs.isEmpty()) {
 			return buildEmptyMonthlyEntries(firstDay, lastDay);
 		}
 
-		Map<String, DailyTokenEntry> dayMap = new LinkedHashMap<>();
+		Map<LocalDate, DailyTokenEntry> dayMap = new LinkedHashMap<>();
 		for (RequestLogEntry log : logs) {
 			if (log.getStartTime() <= 0) continue;
 			if (modelId != null && !modelId.isEmpty() && !modelId.equals(log.getModelId())) continue;
 			LocalDate day = Instant.ofEpochMilli(log.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate();
 			if (day.isBefore(firstDay) || day.isAfter(lastDay)) continue;
-			DailyTokenEntry entry = dayMap.get(day.toString());
+			DailyTokenEntry entry = dayMap.get(day);
 			if (entry == null) {
 				entry = new DailyTokenEntry();
 				entry.setDate(day.toString());
-				dayMap.put(day.toString(), entry);
+				dayMap.put(day, entry);
 			}
 			entry.setPromptTokens(entry.getPromptTokens() + log.getPromptTokens());
 			entry.setPredictedTokens(entry.getPredictedTokens() + log.getPredictedTokens());
@@ -203,12 +233,11 @@ public class UsageReportService {
 
 		List<DailyTokenEntry> result = new ArrayList<>();
 		for (LocalDate d = firstDay; !d.isAfter(lastDay); d = d.plusDays(1)) {
-			String key = d.toString();
-			if (dayMap.containsKey(key)) {
-				result.add(dayMap.get(key));
+			if (dayMap.containsKey(d)) {
+				result.add(dayMap.get(d));
 			} else {
 				DailyTokenEntry empty = new DailyTokenEntry();
-				empty.setDate(key);
+				empty.setDate(d.toString());
 				result.add(empty);
 			}
 		}
@@ -219,12 +248,26 @@ public class UsageReportService {
 	 * 获取有数据的所有年份（去重，升序）。
 	 */
 	public List<Integer> getAvailableYears() {
-		List<RequestLogEntry> logs = getAllRequestLogs(null);
 		Set<Integer> years = new TreeSet<>();
-		for (RequestLogEntry log : logs) {
-			if (log.getStartTime() <= 0) continue;
-			LocalDate day = Instant.ofEpochMilli(log.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate();
-			years.add(day.getYear());
+		try (Stream<Path> paths = Files.list(Paths.get(RECORD_DIR))) {
+			List<Path> logFiles = paths.filter(p -> p.toString().endsWith(".requests.bin")).collect(java.util.stream.Collectors.toList());
+			for (Path logPath : logFiles) {
+				try (BinaryRequestLog log = new BinaryRequestLog(logPath)) {
+					long count = log.getRecordCount();
+					if (count == 0) continue;
+					RequestLogRecord first = log.readRecord(0);
+					RequestLogRecord last = log.readRecord(count - 1);
+					int firstYear = Instant.ofEpochMilli(first.startTime).atZone(ZoneId.systemDefault()).toLocalDate().getYear();
+					int lastYear = Instant.ofEpochMilli(last.startTime).atZone(ZoneId.systemDefault()).toLocalDate().getYear();
+					for (int y = firstYear; y <= lastYear; y++) {
+						years.add(y);
+					}
+				} catch (Exception e) {
+					// skip
+				}
+			}
+		} catch (IOException e) {
+			// skip
 		}
 		// 确保包含当前年份
 		years.add(LocalDate.now().getYear());

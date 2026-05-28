@@ -285,7 +285,30 @@ public class BinaryRequestLog implements Closeable {
         return records;
     }
 
-    private RequestLogRecord decodeRecord(ByteBuffer buf) {
+	public long findFirstIndex(long targetEpochMillis) throws IOException {
+		long low = 0, high = this.recordCount;
+		while (low < high) {
+			long mid = (low + high) >>> 1;
+			long midTime = readRecord(mid).startTime;
+			if (midTime < targetEpochMillis) low = mid + 1;
+			else high = mid;
+		}
+		return low;
+	}
+
+	public long findLastIndex(long targetEpochMillis) throws IOException {
+		if (this.recordCount == 0) return -1;
+		long low = -1, high = this.recordCount - 1;
+		while (low < high) {
+			long mid = (low + high + 1) >>> 1;
+			long midTime = readRecord(mid).startTime;
+			if (midTime > targetEpochMillis) high = mid - 1;
+			else low = mid;
+		}
+		return low;
+	}
+
+	private RequestLogRecord decodeRecord(ByteBuffer buf) {
         RequestLogRecord record = new RequestLogRecord();
         record.startTime = buf.getLong();
         record.endpoint = buf.get();
