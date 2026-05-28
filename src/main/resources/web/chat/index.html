@@ -182,6 +182,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
             采样参数
           </button>
+          <button class="settings-tab" data-settings-tab="templates" role="tab" type="button" data-i18n="page.chat.main.settings.tab.templates">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h12"/><path d="M4 18h8"/></svg>
+            模板
+          </button>
           <button class="settings-tab" data-settings-tab="mcp" role="tab" type="button" data-i18n="page.chat.main.settings.tab.mcp">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><path d="M9 9l12-2"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             MCP
@@ -335,6 +339,27 @@
             </div>
           </div>
 
+          <div class="settings-section" data-settings-section="templates">
+            <div class="settings-group">
+              <div class="settings-group-title" data-i18n="page.chat.main.settings.templates.section_title">消息模板</div>
+              <div class="settings-field">
+                <div class="settings-field-header">
+                  <label data-i18n="page.chat.main.settings.templates.timestamp_label">附带实时时间</label>
+                </div>
+                <label class="settings-toggle">
+                  <div class="settings-toggle-text">
+                    <span data-i18n="page.chat.main.settings.templates.timestamp_toggle">附带实时时间</span>
+                    <span class="settings-field-desc" data-i18n="page.chat.main.settings.templates.timestamp_desc">启用后，发送消息时会在消息最前面自动插入当前时间戳</span>
+                  </div>
+                  <span class="toggle-switch">
+                    <input id="timestampToggle" type="checkbox">
+                    <span class="toggle-slider"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div class="settings-section" data-settings-section="mcp">
             <div class="settings-group">
               <div class="settings-group-title" data-i18n="page.chat.main.settings.mcp.title">MCP</div>
@@ -462,6 +487,7 @@
       stream: true,
       streamRender: true,
       enableThinking: false,
+      enableTimestamp: false,
       systemPrompt: '',
       mcpServerUrls: [],
       search: '',
@@ -581,7 +607,8 @@
       mcpUseSseTemplateBtn: document.getElementById('mcpUseSseTemplateBtn'),
       mcpRefreshBtn: document.getElementById('mcpRefreshBtn'),
       mcpSummary: document.getElementById('mcpSummary'),
-      mcpServerList: document.getElementById('mcpServerList')
+      mcpServerList: document.getElementById('mcpServerList'),
+      timestampToggle: document.getElementById('timestampToggle')
     };
 
     let mcpModule = null;
@@ -1296,6 +1323,7 @@
         stream: typeof assistant?.stream === 'boolean' ? assistant.stream : typeof fallback?.stream === 'boolean' ? fallback.stream : true,
         streamRender: typeof assistant?.streamRender === 'boolean' ? assistant.streamRender : typeof fallback?.streamRender === 'boolean' ? fallback.streamRender : true,
         enableThinking: typeof assistant?.enableThinking === 'boolean' ? assistant.enableThinking : typeof fallback?.enableThinking === 'boolean' ? fallback.enableThinking : false,
+        enableTimestamp: typeof assistant?.enableTimestamp === 'boolean' ? assistant.enableTimestamp : typeof fallback?.enableTimestamp === 'boolean' ? fallback.enableTimestamp : false,
         systemPrompt: typeof assistant?.systemPrompt === 'string' ? assistant.systemPrompt : typeof fallback?.systemPrompt === 'string' ? fallback.systemPrompt : '',
         mcpServerUrls: normalizeMcpAssistantUrls(assistant, fallback),
         mcpToolStates: normalizeMcpToolStates(assistant, fallback)
@@ -1318,6 +1346,7 @@
         stream: typeof saved?.stream === 'boolean' ? saved.stream : true,
         streamRender: typeof saved?.streamRender === 'boolean' ? saved.streamRender : true,
         enableThinking: typeof saved?.enableThinking === 'boolean' ? saved.enableThinking : false,
+        enableTimestamp: typeof saved?.enableTimestamp === 'boolean' ? saved.enableTimestamp : false,
         systemPrompt: typeof saved?.systemPrompt === 'string' ? saved.systemPrompt : ''
       });
     }
@@ -2008,6 +2037,7 @@
       state.stream = typeof assistant?.stream === 'boolean' ? assistant.stream : true;
       state.streamRender = typeof assistant?.streamRender === 'boolean' ? assistant.streamRender : true;
       state.enableThinking = !!assistant?.enableThinking;
+      state.enableTimestamp = !!assistant?.enableTimestamp;
       state.systemPrompt = assistant?.systemPrompt || '';
       state.mcpServerUrls = normalizeMcpAssistantUrls(assistant);
       syncModelSelectControl();
@@ -2034,6 +2064,7 @@
       assistant.stream = !!state.stream;
       assistant.streamRender = !!state.streamRender;
       assistant.enableThinking = !!state.enableThinking;
+      assistant.enableTimestamp = !!state.enableTimestamp;
       assistant.systemPrompt = state.systemPrompt;
       assistant.mcpServerUrls = normalizeMcpAssistantUrls({ mcpServerUrls: state.mcpServerUrls });
     }
@@ -2577,6 +2608,7 @@
       els.stopSequencesInput.value = state.stopSequences;
       els.streamToggle.checked = !!state.stream;
       els.streamRenderToggle.checked = !!state.streamRender;
+      if (els.timestampToggle) els.timestampToggle.checked = !!state.enableTimestamp;
       els.systemPromptInput.value = state.systemPrompt;
       resizeSystemPromptInput();
       els.searchInput.value = state.search;
@@ -2622,6 +2654,7 @@
       state.stopSequences = els.stopSequencesInput.value;
       state.stream = els.streamToggle.checked;
       state.streamRender = els.streamRenderToggle.checked;
+      state.enableTimestamp = els.timestampToggle ? els.timestampToggle.checked : false;
       state.systemPrompt = els.systemPromptInput.value;
       syncCurrentAssistantFromRuntimeState();
       renderThinkingMenu();
@@ -4969,7 +5002,7 @@
         return;
       }
       syncRuntimeStateFromCurrentAssistant();
-      const prompt = els.promptInput.value.trim();
+      let prompt = els.promptInput.value.trim();
       const images = normalizeImages(state.draftImages);
       const files = normalizeTextFiles(state.draftTextFiles);
       const audios = normalizeAudioFiles(state.draftAudioFiles);
@@ -4980,6 +5013,14 @@
       if (!state.model) {
         updateStatus('error', window.I18N.t('page.chat.main.status.no_model_selected', '请先选择模型'), window.I18N.t('page.chat.main.status.no_model_selected_short', '未选择模型'));
         return;
+      }
+
+      if (state.enableTimestamp && prompt) {
+        const now = new Date();
+        const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const prefix = window.I18N.t('page.chat.main.templates.timestamp_prefix', '[Current system time: {date} {time}]');
+        prompt = prefix.replace('{date}', dateStr).replace('{time}', timeStr) + '\n\n' + prompt;
       }
 
       pushMessage('user', prompt, { images, files, audios }, { persist: false });

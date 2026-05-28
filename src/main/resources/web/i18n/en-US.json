@@ -1667,5 +1667,11 @@
   "common.enable": "Enable",
   "common.save_success": "Save successful",
   "common.saved": "Saved",
-  "common.save_failed": "Save failed"
+  "common.save_failed": "Save failed",
+  "page.chat.main.settings.templates.section_title": "Message Templates",
+  "page.chat.main.settings.tab.templates": "Templates",
+  "page.chat.main.settings.templates.timestamp_label": "Attach current time",
+  "page.chat.main.settings.templates.timestamp_toggle": "Attach current time",
+  "page.chat.main.settings.templates.timestamp_desc": "When enabled, the current timestamp is automatically prepended to every outgoing message",
+  "page.chat.main.templates.timestamp_prefix": "[Current system time: {date} {time}]"
 }

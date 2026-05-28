@@ -1667,5 +1667,11 @@
   "common.enable": "启用",
   "common.save_success": "保存成功",
   "common.saved": "已保存",
-  "common.save_failed": "保存失败"
+  "common.save_failed": "保存失败",
+  "page.chat.main.settings.templates.section_title": "消息模板",
+  "page.chat.main.settings.tab.templates": "模板",
+  "page.chat.main.settings.templates.timestamp_label": "附带实时时间",
+  "page.chat.main.settings.templates.timestamp_toggle": "附带实时时间",
+  "page.chat.main.settings.templates.timestamp_desc": "启用后，发送消息时会在消息最前面自动插入当前时间戳",
+  "page.chat.main.templates.timestamp_prefix": "[当前系统时间：{date} {time}]"
 }
