@@ -5138,8 +5138,8 @@
       if (!userText) {
         return;
       }
-      const firstAssistant = conversation.messages.find(m => m.role === 'assistant' && hasMessageBody(m));
-      const assistantText = firstAssistant ? getMessageText(firstAssistant).trim().slice(0, 500) : '';
+      const convAssistant = getConversationAssistant(conversation);
+      const systemText = convAssistant?.systemPrompt?.trim() || '';
       const isChinese = /[\u4e00-\u9fff]/.test(userText);
       const systemPrompt = isChinese
         ? '你是一个标题生成器，严格按照以下规则输出：\n'
@@ -5172,7 +5172,9 @@
           + 'User: Write a Python quicksort algorithm\n'
           + 'Assistant: Here is a quicksort implementation in Python\n'
           + 'Python Quicksort Algorithm';
-      const exchange = 'User: ' + userText + (assistantText ? '\n\nAssistant: ' + assistantText : '');
+      const exchange = systemText
+        ? 'System: ' + systemText + '\n\nUser: ' + userText
+        : 'User: ' + userText;
       const compositeKey = state.titleGenModel || state.model || '';
       if (!compositeKey) {
         return;
