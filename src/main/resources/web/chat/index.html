@@ -2168,6 +2168,10 @@
       if (!conversation) {
         return;
       }
+      const userMsgs = conversation.messages.filter(item => item.role === 'user' && hasMessageBody(item));
+      if (userMsgs.length >= 2 && conversation.title) {
+        return;
+      }
       const firstUser = conversation.messages.find(item => item.role === 'user' && hasMessageBody(item));
       if (!firstUser) {
         conversation.title = window.I18N.t('page.chat.main.status.new_conversation_short', '新对话');
