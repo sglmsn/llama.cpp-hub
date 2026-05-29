@@ -1827,14 +1827,16 @@ public class LlamaServerManager {
 	 * @param modelId
 	 * @param enableVision
 	 * @param cmd
-	 * @return
+	 * @return Map containing "output" (stdout) and "error" (stderr)
 	 */
-	public String handleFitParam(String llamaBinPath, String modelId, boolean enableVision, List<String> cmd) {
-		String[] keysParam = {"--ctx-size", "--flash-attn", "--batch-size", "--ubatch-size", "--parallel", "--kv-unified", "--cache-type-k", "--cache-type-v", "--device", "--main-gpu"};
+	public Map<String, String> handleFitParam(String llamaBinPath, String modelId, boolean enableVision, List<String> cmd) {
+		Map<String, String> resultMap = new HashMap<>();
+		String[] keysParam = {"--ctx-size", "--flash-attn", "--batch-size", "--ubatch-size", "--parallel", "--cache-type-k", "--cache-type-v", "--device", "--main-gpu", "--swa-full", "--split-mode", "--fit", "--spec-draft-type-k", "--spec-draft-type-v"};
 		Map<String, String> cmdMap = new HashMap<>();
 		for(int i = 0; i < cmd.size(); i++) {
 			String param = cmd.get(i);
 			if(param.startsWith("--") && i + 1 < cmd.size()) {
+				// 如果当前参数的下一个不是参数名，而是值
 				if(!cmd.get(i + 1).startsWith("--")) {
 					cmdMap.put(param, cmd.get(i + 1));
 					i += 1;
@@ -1844,20 +1846,25 @@ public class LlamaServerManager {
 			}
 		}
 		GGUFModel model = this.findModelById(modelId);
-		if(model == null) return "Model not found: " + modelId;
-		
+		if(model == null) {
+			resultMap.put("output", "");
+			resultMap.put("error", "Model not found: " + modelId);
+			return resultMap;
+		}
+
 		String executableName = "llama-fit-params";
 		// 拼接完整命令路径
 		String command = llamaBinPath.trim() + File.separator + executableName;
 		command += " --model " + model.getPrimaryModel().getFilePath();
-		command += " -lv 4";
-		
+		//command += " -lv 4";
+		command += " -fitp on";
+
 		for(String key : keysParam) {
 			// 如果有这个参数
 			if(cmdMap.containsKey(key)) {
 				String value = cmdMap.get(key);
 				if(key.equals(value)) {
-					command += key;
+					command += " " + key + " ";
 				}else {
 					command += " " + key + " " + value;
 				}
@@ -1873,8 +1880,9 @@ public class LlamaServerManager {
 		logger.info("执行llama-fit-param命令：{}", command);
 		// 执行命令
 		CommandLineRunner.CommandResult result = CommandLineRunner.execute(command, 30);
-		String output = result.getError();
-		return output != null ? output : "";
+		resultMap.put("output", result.getOutput() != null ? result.getOutput() : "");
+		resultMap.put("error", result.getError() != null ? result.getError() : "");
+		return resultMap;
 	}
 	
 	/**

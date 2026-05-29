@@ -1726,16 +1726,35 @@ public class SystemController implements BaseController {
 
 			logger.info("[显存估算] 本地执行: modelId={}, llamaBinPath={}, cmd={}", modelId, llamaBinPathSelect, combinedCmd);
 
-			Map<String, Object> data = new HashMap<>();
 			List<String> cmdlist = ParamTool.splitCmdArgs(combinedCmd);
-			String output = LlamaServerManager.getInstance().handleFitParam(llamaBinPathSelect, modelId, enableVision, cmdlist);
+			Map<String, String> result = LlamaServerManager.getInstance().handleFitParam(llamaBinPathSelect, modelId, enableVision, cmdlist);
 
-			Pattern numberPattern = Pattern.compile("(?:llama|common)_params_fit_impl: projected to use (\\d+) MiB");
-			Matcher numberMatcher = numberPattern.matcher(output);
-			if (numberMatcher.find()) {
-			    String value = numberMatcher.group(1);
-			    data.put("vram", value);
-			    logger.info("[显存估算] 成功: modelId={}, vram={} MiB", modelId, value);
+			String output = result.get("output");
+			if (output == null || output.trim().isEmpty()) {
+				String error = result.get("error");
+				logger.warn("[显存估算] 执行失败: modelId={}, error={}", modelId, error);
+				LlamaServer.sendJsonResponse(ctx, ApiResponse.error(error != null ? error.trim() : "估算显存失败"));
+				return;
+			}
+			Map<String, Object> data = new HashMap<>();
+			Pattern devicePattern = Pattern.compile("(\\S+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)");
+			Matcher deviceMatcher = devicePattern.matcher(output);
+			long totalVram = 0;
+			boolean found = false;
+			while (deviceMatcher.find()) {
+				String deviceName = deviceMatcher.group(1);
+				if ("estimated".equalsIgnoreCase(deviceName) || "MiB".equalsIgnoreCase(deviceName)) {
+					continue;
+				}
+				long modelMem = Long.parseLong(deviceMatcher.group(2));
+				long contextMem = Long.parseLong(deviceMatcher.group(3));
+				long computeMem = Long.parseLong(deviceMatcher.group(4));
+				totalVram += modelMem + contextMem + computeMem;
+				found = true;
+			}
+			if (found) {
+				data.put("vram", String.valueOf(totalVram));
+				logger.info("[显存估算] 成功: modelId={}, vram={} MiB", modelId, totalVram);
 			} else {
 				Pattern pattern = Pattern.compile("^.*llama_init_from_model.*$", Pattern.MULTILINE);
 		        Matcher matcher = pattern.matcher(output);
