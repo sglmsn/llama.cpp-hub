@@ -166,7 +166,13 @@ public class SystemController implements BaseController {
 			this.handleFsListRequest(ctx, request);
 			return true;
 		}
-		
+
+		// 清空静态文件缓存
+		if (uri.startsWith("/api/sys/static/cache/clear")) {
+			this.handleClearStaticCacheRequest(ctx, request);
+			return true;
+		}
+
 		// 检查更新
 		if (uri.startsWith("/api/sys/update/check")) {
 			this.handleUpdateCheckRequest(ctx, request);
@@ -1274,9 +1280,22 @@ public class SystemController implements BaseController {
 	private static boolean isValidPort(int port) {
 		return port > 0 && port <= 65535;
 	}
-	
-	
-	
+
+
+
+	/**
+	 * 清空静态文件缓存
+	 */
+	private void handleClearStaticCacheRequest(ChannelHandlerContext ctx, FullHttpRequest request) throws RequestMethodException {
+		if (request.method() == HttpMethod.OPTIONS) {
+			LlamaServer.sendCorsResponse(ctx);
+			return;
+		}
+		this.assertRequestMethod(request.method() != HttpMethod.GET, "只支持GET请求");
+		LlamaServer.clearStaticFileCache();
+		LlamaServer.sendJsonResponse(ctx, ApiResponse.success());
+	}
+
 	/**
 	 * 	检查更新
 	 */

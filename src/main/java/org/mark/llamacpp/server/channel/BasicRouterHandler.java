@@ -164,7 +164,7 @@ public class BasicRouterHandler extends SimpleChannelInboundHandler<FullHttpRequ
 				// 不允许直接访问目录，必须通过API
 				LlamaServer.sendErrorResponse(ctx, HttpResponseStatus.FORBIDDEN, "不允许直接访问目录，请使用API获取文件列表");
 			} else {
-				LlamaServer.sendFile(ctx, file);
+				LlamaServer.sendStaticFile(ctx, file, request);
 			}
 		} catch (RequestMethodException e) {
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.error(e.getMessage()));
