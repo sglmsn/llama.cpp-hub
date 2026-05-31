@@ -173,7 +173,42 @@ public class LlamaServer {
 		NodeManager.getInstance().initialize();
 
 		logger.info("系统初始化完成，启动Web服务器...");
-		
+
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			logger.info("收到关闭信号，正在清理所有资源...");
+			try {
+				LlamaServer.closeAllWebServerChannels();
+			} catch (Exception e) {
+				logger.error("关闭Web服务通道失败", e);
+			}
+			try {
+				Ollama.getInstance().stop();
+			} catch (Exception e) {
+				logger.error("停止Ollama服务失败", e);
+			}
+			try {
+				LMStudio.getInstance().stop();
+			} catch (Exception e) {
+				logger.error("停止LMStudio服务失败", e);
+			}
+			try {
+				LlamaServer.stopMcpServerListener();
+			} catch (Exception e) {
+				logger.error("停止MCP服务失败", e);
+			}
+			try {
+				NodeManager.getInstance().shutdown();
+			} catch (Exception e) {
+				logger.error("关闭节点管理器失败", e);
+			}
+			try {
+				LlamaServerManager.getInstance().shutdownAll();
+			} catch (Exception e) {
+				logger.error("停止所有模型失败", e);
+			}
+			logger.info("清理完成，进程退出");
+		}, "shutdown-hook"));
+
 		LlamaServer.initHttpsContext();
 
 		Thread t1 = new Thread(() -> {
