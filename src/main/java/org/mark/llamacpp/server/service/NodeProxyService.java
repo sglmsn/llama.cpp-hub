@@ -103,14 +103,12 @@ public class NodeProxyService {
                 ctx.flush();
 
                 Map<Integer, String> toolCallIds = new HashMap<>();
-                boolean clientDisconnected = false;
 
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(result.getBody(), StandardCharsets.UTF_8))) {
                     String line;
                     while ((line = br.readLine()) != null) {
                         if (!ctx.channel().isActive() || !ctx.channel().isWritable()) {
                             logger.info("客户端连接已断开，中止远程节点流式代理: nodeId={}", nodeId);
-                            clientDisconnected = true;
                             break;
                         }
 
