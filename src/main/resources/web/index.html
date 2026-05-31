@@ -541,6 +541,9 @@
                             <option value="params_asc" data-i18n="page.model.sort.params_asc">page.model.sort.params_asc</option>
                             <option value="params_desc" data-i18n="page.model.sort.params_desc">page.model.sort.params_desc</option>
                         </select>
+                        <button id="modelViewToggle" class="btn-icon" style="width:36px;height:36px;" title="Toggle view" onclick="toggleModelView()">
+                            <i class="fas fa-th-large"></i>
+                        </button>
                     </div>
                 </div>
                 <div id="modelsList">
@@ -1954,6 +1957,7 @@
             loadParamConfig();
             loadBuildInfo();
             updateChatCompletionLinkForDevice();
+            applyModelView();
         });
 
         window.addEventListener('i18n:ready', function(e) {

@@ -383,6 +383,8 @@ function renderModelsList(models) {
     }
 
     let html = '';
+    const isGridView = getModelView() === 'grid';
+    modelsList.classList.toggle('grid-view', isGridView);
     models.forEach(model => {
         const architecture = model.architecture || t('common.unknown', '未知');
         const quantization = model.quantization || '';
@@ -438,35 +440,52 @@ function renderModelsList(models) {
 
         const isRemote = nodeId && nodeId !== 'local';
         const borderStyle = isRemote ? ' style="border-left-color:hsl(' + nodeColor + ',65%,50%);"' : '';
+        const iconWrapper = `<div class="model-icon-wrapper">
+                            ${modelIconPath ? `<img src="${modelIconSrc}" data-model-icon-path="${modelIconPath}" alt="${architecture}">` : `<i class="fas fa-brain"></i>`}
+                        </div>`;
+        const badges = `${model.supportsVision ? '<span class="vision-badge"><i class="fas fa-image"></i></span>' : ''}${model.supportsAudio ? '<span class="audio-badge"><i class="fas fa-headphones"></i></span>' : ''}${model.hasMtp ? '<span class="mtp-badge">MTP</span>' : ''}`;
+        const hasBadges = badges.length > 0;
+        const nameClickAttr = `onclick="openAliasModal(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(model.name)}'), decodeURIComponent('${encodeURIComponent(model.alias || '')}'), '${nodeId || 'local'}')"`;
+        const metaBlock = `<div class="model-meta">
+                                <span><i class="fas fa-layer-group"></i> ${architecture}</span>
+                                ${quantization ? `<span><i class="fas fa-microchip"></i> ${quantization}</span>` : ''}
+                                <span><i class="fas fa-hdd"></i> ${formatFileSize(model.size)}</span>
+                                ${model.port ? `<span><i class="fas fa-network-wired"></i> ${model.port}</span>` : ''}
+                            </div>`;
+        const slotsAndNode = `<span class="model-slots" id="slots-${encodeURIComponent(modelCompositeKey(model.id, model.nodeId))}" style="display:none;">${renderSlotsSquaresInner(model.slots)}</span>${nodeBadge ? '<div class="model-node-badge-line">' + nodeBadge + '</div>' : ''}`;
+        const detailsBlock = isGridView
+            ? `<div class="model-details">
+                             <div class="model-name" title="${model.name}" ${nameClickAttr}>${displayName}</div>
+                            ${hasBadges ? `<div class="model-badges">${badges}</div>` : ''}
+                            ${metaBlock}
+							${slotsAndNode}
+                        </div>`
+            : `<div class="model-details">
+                             <div class="model-name" title="${model.name}" ${nameClickAttr}>
+                                ${displayName}
+                                 ${badges}
+                            </div>
+                            ${metaBlock}
+							${slotsAndNode}
+                        </div>`;
+        const statusBadge = `<div class="model-status-badge ${statusClass}">
+                            <i class="fas ${statusIcon}"></i> <span>${statusText}</span>
+                            ${model.busy && model.isLoaded ? '<span class="model-busy-indicator"><i class="fas fa-sync-alt fa-spin"></i> ' + t('page.model.status.busy', '工作中') + '</span>' : ''}
+                        </div>`;
+        const actionsBlock = `<div class="model-actions">${actionButtons}</div>`;
+        const bottomContent = isGridView
+            ? `<div class="model-card-bottom">${statusBadge}${actionsBlock}</div>`
+            : `${statusBadge}${actionsBlock}`;
+        const midContent = isGridView
+            ? `<div class="model-card-top">${iconWrapper}${detailsBlock}</div>`
+            : `${iconWrapper}${detailsBlock}`;
         html += `
                     <div class="model-item"${borderStyle}>
                         <button class="model-fav-btn ${isFavourite ? 'active' : ''}" onclick="toggleFavouriteModel(event, decodeURIComponent('${encodeURIComponent(model.id)}'), '${nodeId || 'local'}')" title="${isFavourite ? t('page.model.fav.remove', '取消喜好') : t('page.model.fav.add', '标记喜好')}">
                             <i class="${isFavourite ? 'fas' : 'far'} fa-star"></i>
                         </button>
-                        <div class="model-icon-wrapper">
-                            ${modelIconPath ? `<img src="${modelIconSrc}" data-model-icon-path="${modelIconPath}" alt="${architecture}">` : `<i class="fas fa-brain"></i>`}
-                        </div>
-                        <div class="model-details">
-                             <div class="model-name" title="${model.name}" onclick="openAliasModal(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(model.name)}'), decodeURIComponent('${encodeURIComponent(model.alias || '')}'), '${nodeId || 'local'}')">
-                                ${displayName}
-                                 ${model.supportsVision ? '<span class="vision-badge"><i class="fas fa-image"></i></span>' : ''}
-                                 ${model.supportsAudio ? '<span class="audio-badge"><i class="fas fa-headphones"></i></span>' : ''}
-                                 ${model.hasMtp ? '<span class="mtp-badge">MTP</span>' : ''}
-                            </div>
-                        <div class="model-meta">
-                                <span><i class="fas fa-layer-group"></i> ${architecture}</span>
-                                ${quantization ? `<span><i class="fas fa-microchip"></i> ${quantization}</span>` : ''}
-                                <span><i class="fas fa-hdd"></i> ${formatFileSize(model.size)}</span>
-                                ${model.port ? `<span><i class="fas fa-network-wired"></i> ${model.port}</span>` : ''}
-                            </div>
-							<span class="model-slots" id="slots-${encodeURIComponent(modelCompositeKey(model.id, model.nodeId))}" style="display:none;">${renderSlotsSquaresInner(model.slots)}</span>
-							${nodeBadge ? '<div class="model-node-badge-line">' + nodeBadge + '</div>' : ''}
-                        </div>
-                        <div class="model-status-badge ${statusClass}">
-                            <i class="fas ${statusIcon}"></i> <span>${statusText}</span>
-                            ${model.busy && model.isLoaded ? '<span class="model-busy-indicator"><i class="fas fa-sync-alt fa-spin"></i> ' + t('page.model.status.busy', '工作中') + '</span>' : ''}
-                        </div>
-                        <div class="model-actions">${actionButtons}</div>
+                        ${midContent}
+                        ${bottomContent}
                     </div>
                 `;
     });
@@ -545,6 +564,43 @@ function toggleFavouriteModel(event, modelId, nodeId) {
             }
             showToast(t('toast.error', '错误'), err && err.message ? err.message : t('common.network_error', '网络错误'), 'error');
         });
+}
+
+function getModelView() {
+    try {
+        return localStorage.getItem('modelView') || 'list';
+    } catch (e) {
+        return 'list';
+    }
+}
+
+function setModelView(view) {
+    try {
+        localStorage.setItem('modelView', view);
+    } catch (e) {}
+}
+
+function toggleModelView() {
+    const current = getModelView();
+    const next = current === 'grid' ? 'list' : 'grid';
+    setModelView(next);
+    applyModelView();
+    sortAndRenderModels();
+}
+
+function applyModelView() {
+    const view = getModelView();
+    const modelsList = document.getElementById('modelsList');
+    if (modelsList) {
+        modelsList.classList.toggle('grid-view', view === 'grid');
+    }
+    const btn = document.getElementById('modelViewToggle');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.className = view === 'grid' ? 'fas fa-list' : 'fas fa-th-large';
+        }
+    }
 }
 
 function refreshModels() {
