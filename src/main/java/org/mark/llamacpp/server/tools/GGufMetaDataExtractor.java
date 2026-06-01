@@ -8,6 +8,7 @@ import java.nio.file.*;
 
 import org.mark.llamacpp.crawler.NettyHttpUtils;
 import org.mark.llamacpp.crawler.NettyHttpUtils.Response;
+import org.mark.llamacpp.server.LlamaServer;
 
 
 //GGufMetaDataExtractor.java
@@ -247,9 +248,14 @@ public class GGufMetaDataExtractor {
     // ------------------------------------------------------------------
     private static final long CHUNK_SIZE = 2L * 1024 * 1024;
     private static final long MAX_DOWNLOAD = 32L * 1024 * 1024;
+    private static final String META_CACHE_DIR = "meta";
 
     static byte[] downloadHeader(String urlStr) throws Exception {
-        Path tmpFile = Files.createTempFile("gguf-header-", ".bin");
+        Path metaDir = LlamaServer.getCachePath().resolve(META_CACHE_DIR);
+        if (!Files.exists(metaDir)) {
+            Files.createDirectories(metaDir);
+        }
+        Path tmpFile = Files.createTempFile(metaDir, "gguf-header-", ".bin");
         long downloaded = 0;
 
         try {
@@ -424,7 +430,7 @@ public class GGufMetaDataExtractor {
     // ------------------------------------------------------------------
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("Usage: java GGufMetaExtractor.java <input.gguf | https://.../model.gguf> [output.meta.gguf]");
+            System.err.println("Usage: java GGufMetaExtractor.java <input.gguf | https://.../model.gguf>");
             //System.exit(1);
         }
         
@@ -433,16 +439,15 @@ public class GGufMetaDataExtractor {
         String input = args[0];
         boolean isUrl = input.startsWith("http://") || input.startsWith("https://");
 
-        // Determine output filename
-        String outPath;
-        if (args.length >= 2) {
-            outPath = args[1];
-        } else {
-            String base = isUrl ? input.substring(input.lastIndexOf('/') + 1) : input;
-            int qm = base.indexOf('?');
-            if (qm >= 0) base = base.substring(0, qm);
-            outPath = base + ".meta.gguf";
+        // Output is always in cache/meta/
+        Path metaDir = LlamaServer.getCachePath().resolve(META_CACHE_DIR);
+        if (!Files.exists(metaDir)) {
+            Files.createDirectories(metaDir);
         }
+        String base = isUrl ? input.substring(input.lastIndexOf('/') + 1) : input;
+        int qm = base.indexOf('?');
+        if (qm >= 0) base = base.substring(0, qm);
+        String outPath = metaDir.resolve(base + ".meta.gguf").toString();
 
         byte[] headerData;
         if (isUrl) {
