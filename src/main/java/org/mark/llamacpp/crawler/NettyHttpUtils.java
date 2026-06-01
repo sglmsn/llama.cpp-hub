@@ -19,6 +19,8 @@ import io.netty.util.concurrent.GenericFutureListener;
 
 import org.mark.llamacpp.server.LlamaServer;
 import org.mark.llamacpp.server.struct.ProxyConfigData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -56,26 +58,22 @@ public final class NettyHttpUtils {
             HttpHeaderNames.COOKIE.toString().toLowerCase(Locale.ROOT),
             HttpHeaderNames.HOST.toString().toLowerCase(Locale.ROOT)
     );
-    private static final ExecutorService REDIRECT_EXECUTOR = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "http-redirect");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ExecutorService REDIRECT_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
-    private NettyHttpUtils() {}
-
-    /**
-     * Creates an SSL context that trusts all certificates (including self-signed).
-     */
-    private static SslContext createInsecureSslContext() {
+    private static final SslContext INSECURE_SSL_CONTEXT;
+    static {
         try {
-            return SslContextBuilder.forClient()
+            INSECURE_SSL_CONTEXT = SslContextBuilder.forClient()
                     .trustManager(InsecureTrustManagerFactory.INSTANCE)
                     .build();
         } catch (Exception e) {
             throw new RuntimeException("Failed to create SSL context", e);
         }
     }
+
+    private static final Logger logger = LoggerFactory.getLogger(NettyHttpUtils.class);
+
+    private NettyHttpUtils() {}
 
     // -----------------------------------------------------------------------
     // Response record
@@ -172,12 +170,12 @@ public final class NettyHttpUtils {
                         }
                     }
                 }
-            } catch (Exception e) {
-                System.err.println("[NettyHttpUtils] Failed to resolve proxy config: " + e.getMessage());
-                e.printStackTrace();
+       } catch (Exception e) {
+                logger.warn("Failed to resolve proxy config", e);
             }
             return null;
         }
+
 
         public Request method(String method) {
             this.method = method.toUpperCase();
@@ -284,9 +282,9 @@ public final class NettyHttpUtils {
             ProxyConfig effectiveProxy = resolveProxy();
             if (effectiveProxy != null && proxyConfig == null) {
                 proxyConfig = effectiveProxy;
-                System.err.println("[NettyHttpUtils] Proxy applied: " + effectiveProxy.getHost() + ":" + effectiveProxy.getPort());
+                logger.debug("Proxy applied: {}:{}", effectiveProxy.getHost(), effectiveProxy.getPort());
             } else if (proxyConfig == null) {
-                System.err.println("[NettyHttpUtils] No proxy configured (effectiveProxy=" + effectiveProxy + ")");
+                logger.debug("No proxy configured");
             }
             CompletableFuture<Response> root = new CompletableFuture<>();
             REDIRECT_EXECUTOR.execute(() -> {
@@ -383,13 +381,13 @@ public final class NettyHttpUtils {
                                if (proxyConfig != null && isHttps) {
                                      pipeline.addLast(new HttpClientCodec());
                                      pipeline.addLast(new HttpObjectAggregator(MAX_AGGREGATE_LENGTH));
-                                     pipeline.addLast(new ConnectProxyHandler(
-                                             requestTarget, hostHeader, host, port,
-                                             proxyConfig, state.headers(), state.requestBody(), state.method(),
-                                             future, readTimeout));
+                                pipeline.addLast(new ConnectProxyHandler(
+                                              requestTarget, hostHeader, host, port,
+                                              proxyConfig, state.headers(), state.requestBody(), state.method(),
+                                              future));
                                  } else if (isHttps) {
                                      try {
-                                         SslContext sslContext = createInsecureSslContext();
+                                         SslContext sslContext = INSECURE_SSL_CONTEXT;
                                          pipeline.addLast(sslContext.newHandler(ch.alloc(), host, port));
                                      } catch (Exception e) {
                                          future.completeExceptionally(new IOException("Failed to create SSL context", e));
@@ -579,8 +577,7 @@ public final class NettyHttpUtils {
         ConnectProxyHandler(String requestTarget, String hostHeader, String targetHost, int targetPort,
                            ProxyConfig proxyConfig, Map<String, String> headers,
                            byte[] requestBody, String method,
-                           CompletableFuture<Response> future,
-                           Duration readTimeout) {
+                           CompletableFuture<Response> future) {
             this.requestTarget = requestTarget;
             this.hostHeader = hostHeader;
             this.targetHost = targetHost;
@@ -628,7 +625,7 @@ public final class NettyHttpUtils {
                     ctx.pipeline().remove(HttpObjectAggregator.class);
 
                     try {
-                        SslContext sslContext = createInsecureSslContext();
+                        SslContext sslContext = INSECURE_SSL_CONTEXT;
                         ctx.pipeline().addFirst(sslContext.newHandler(ctx.channel().alloc(), targetHost, targetPort));
                         ctx.pipeline().addLast(new HttpClientCodec());
                         ctx.pipeline().addLast(new HttpContentDecompressor());
@@ -802,8 +799,8 @@ public final class NettyHttpUtils {
      * Fluent builder for streaming HTTP download directly to a file.
      * Bypasses the aggregate length limit by writing chunks to disk.
      */
-    public static class DownloadToFileRequest {
-        private final String url;
+       public static class DownloadToFileRequest {
+        private String url;
         private Path targetFile;
         private Duration connectTimeout = DEFAULT_CONNECT_TIMEOUT;
         private Duration readTimeout = Duration.ofSeconds(60 * 10);
@@ -854,6 +851,14 @@ public final class NettyHttpUtils {
         }
 
         /**
+         * Returns the final URL after following all redirects.
+         * Only meaningful after a successful {@link #execute()} call.
+         */
+        public String getFinalUrl() {
+            return url;
+        }
+
+        /**
          * Resolves the effective proxy configuration.
          * If no proxy is explicitly set, attempts to load from global config.
          */
@@ -874,27 +879,55 @@ public final class NettyHttpUtils {
                         }
                     }
                 }
-            } catch (Exception e) {
-                System.err.println("[NettyHttpUtils] Failed to resolve proxy config: " + e.getMessage());
-                e.printStackTrace();
+              } catch (Exception e) {
+                logger.warn("Failed to resolve proxy config", e);
             }
             return null;
         }
 
         public void execute() throws IOException {
-            try {
-                executeAsync().get(Math.max(connectTimeout.toMillis() + readTimeout.toMillis(), 600_000), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Download interrupted", e);
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof IOException) {
-                    throw (IOException) cause;
+            int redirectCount = 0;
+            int maxRedirects = 10;
+            while (true) {
+                if (cancelled != null && cancelled.get()) {
+                    throw new IOException("Download cancelled");
                 }
-                throw new IOException("Download failed", cause);
-            } catch (TimeoutException e) {
-                throw new IOException("Download timed out", e);
+                try {
+                    executeAsync().get(Math.max(connectTimeout.toMillis() + readTimeout.toMillis(), 600_000), TimeUnit.MILLISECONDS);
+                    return;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Download interrupted", e);
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof DownloadRedirectException redirect) {
+                        if (redirect.location == null || redirect.location.isBlank()) {
+                            throw new IOException("Redirect response missing Location header");
+                        }
+                        if (redirectCount >= maxRedirects) {
+                            throw new IOException("Too many redirects (max " + maxRedirects + ")");
+                        }
+                        redirectCount++;
+                        URI resolved;
+                        try {
+                            resolved = URI.create(url).resolve(redirect.location);
+                        } catch (Exception ex) {
+                            throw new IOException("Invalid redirect Location: " + redirect.location, ex);
+                        }
+                        String nextUrl = resolved.toString();
+                        if (!"http".equalsIgnoreCase(resolved.getScheme()) && !"https".equalsIgnoreCase(resolved.getScheme())) {
+                            throw new IOException("Unsupported redirect scheme: " + resolved.getScheme());
+                        }
+                        url = nextUrl;
+                        continue;
+                    }
+                    if (cause instanceof IOException) {
+                        throw (IOException) cause;
+                    }
+                    throw new IOException("Download failed", cause);
+                } catch (TimeoutException e) {
+                    throw new IOException("Download timed out", e);
+                }
             }
         }
 
@@ -955,14 +988,14 @@ public final class NettyHttpUtils {
                               if (proxyConfig != null && isHttps) {
                                      pipeline.addLast(new HttpClientCodec());
                                      pipeline.addLast(new HttpObjectAggregator(MAX_AGGREGATE_LENGTH));
-                                     pipeline.addLast(new DownloadConnectProxyHandler(
-                                             requestTarget, hostHeader, host, port,
-                                             proxyConfig, headers, targetFile, cancelled, progressListener,
-                                             future, readTimeout));
+                                 pipeline.addLast(new DownloadConnectProxyHandler(
+                                              requestTarget, hostHeader, host, port,
+                                              proxyConfig, headers, targetFile, cancelled, progressListener,
+                                              future));
                                  } else {
                                      if (isHttps) {
                                          try {
-                                             SslContext sslContext = createInsecureSslContext();
+                     SslContext sslContext = INSECURE_SSL_CONTEXT;
                                              pipeline.addLast(sslContext.newHandler(ch.alloc(), host, port));
                                          } catch (Exception e) {
                                              future.completeExceptionally(new IOException("Failed to create SSL context", e));
@@ -970,9 +1003,9 @@ public final class NettyHttpUtils {
                                          }
                                      }
                                      pipeline.addLast(new HttpClientCodec());
-                                     pipeline.addLast(new DownloadToFileHandler(
-                                             host, hostHeader, requestTarget, proxyConfig, headers,
-                                             targetFile, cancelled, progressListener, future, readTimeout, isHttps));
+                             pipeline.addLast(new DownloadToFileHandler(
+                                              hostHeader, requestTarget, proxyConfig, headers,
+                                              targetFile, cancelled, progressListener, future, isHttps));
                                  }
                             }
                         })
@@ -1016,6 +1049,23 @@ public final class NettyHttpUtils {
     }
 
     /**
+     * Signals a redirect response from {@link DownloadToFileHandler}.
+     * Carries the Location header value back to the execute loop.
+     */
+    private static class DownloadRedirectException extends IOException {
+        /**
+		 * 
+		 */
+		private static final long serialVersionUID = 1L;
+		final String location;
+
+        DownloadRedirectException(int statusCode, String location) {
+            super("HTTP " + statusCode + " redirect: " + location);
+            this.location = location;
+        }
+    }
+
+    /**
      * Handles CONNECT tunnel for download through HTTPS proxy.
      */
     private static class DownloadConnectProxyHandler extends ChannelInboundHandlerAdapter {
@@ -1029,12 +1079,11 @@ public final class NettyHttpUtils {
         private final AtomicBoolean cancelled;
         private final ProgressListener progressListener;
         private final CompletableFuture<Void> future;
-        private final Duration readTimeout;
 
         DownloadConnectProxyHandler(String requestTarget, String hostHeader, String targetHost, int targetPort,
                                     ProxyConfig proxyConfig, Map<String, String> headers,
                                     Path targetFile, AtomicBoolean cancelled, ProgressListener progressListener,
-                                    CompletableFuture<Void> future, Duration readTimeout) {
+                                    CompletableFuture<Void> future) {
             this.requestTarget = requestTarget;
             this.hostHeader = hostHeader;
             this.targetHost = targetHost;
@@ -1045,7 +1094,6 @@ public final class NettyHttpUtils {
             this.cancelled = cancelled;
             this.progressListener = progressListener;
             this.future = future;
-            this.readTimeout = readTimeout;
         }
 
         @Override
@@ -1074,12 +1122,12 @@ public final class NettyHttpUtils {
                     ctx.pipeline().remove(HttpClientCodec.class);
                     ctx.pipeline().remove(HttpObjectAggregator.class);
                     try {
-                        SslContext sslContext = createInsecureSslContext();
+                        SslContext sslContext = INSECURE_SSL_CONTEXT;
                         ctx.pipeline().addFirst(sslContext.newHandler(ctx.channel().alloc(), targetHost, targetPort));
                         ctx.pipeline().addLast(new HttpClientCodec());
                         ctx.pipeline().addLast(new DownloadToFileHandler(
-                                targetHost, hostHeader, requestTarget, null, headers,
-                                targetFile, cancelled, progressListener, future, readTimeout, true));
+                                hostHeader, requestTarget, null, headers,
+                                targetFile, cancelled, progressListener, future, true));
                     } catch (Exception e) {
                         future.completeExceptionally(new IOException("Failed to establish SSL tunnel", e));
                     }
@@ -1117,10 +1165,10 @@ public final class NettyHttpUtils {
         private boolean responseStarted = false;
         private final AtomicBoolean sent = new AtomicBoolean(false);
 
-        DownloadToFileHandler(String host, String hostHeader, String requestTarget, ProxyConfig proxyConfig,
+        DownloadToFileHandler(String hostHeader, String requestTarget, ProxyConfig proxyConfig,
                               Map<String, String> headers, Path targetFile, AtomicBoolean cancelled,
                               ProgressListener progressListener, CompletableFuture<Void> future,
-                              Duration readTimeout, boolean waitForTlsHandshake) {
+                              boolean waitForTlsHandshake) {
             this.hostHeader = hostHeader;
             this.requestTarget = requestTarget;
             this.proxyConfig = proxyConfig;
@@ -1145,7 +1193,7 @@ public final class NettyHttpUtils {
                 if (!responseStarted) {
                     responseStarted = true;
                     int statusCode = response.status().code();
-                    if (statusCode == 200) {
+                    if (statusCode == 200 || statusCode == 206) {
                         String cl = response.headers().get(HttpHeaderNames.CONTENT_LENGTH);
                         if (cl != null) {
                             try {
@@ -1161,22 +1209,11 @@ public final class NettyHttpUtils {
                             return;
                         }
                         emitProgress();
-                    } else if (statusCode == 206) {
-                        String cl = response.headers().get(HttpHeaderNames.CONTENT_LENGTH);
-                        if (cl != null) {
-                            try {
-                                contentLength = Long.parseLong(cl);
-                            } catch (NumberFormatException ignore) {
-                            }
-                        }
-                        try {
-                            raf = new java.io.RandomAccessFile(targetFile.toFile(), "rw");
-                        } catch (IOException e) {
-                            future.completeExceptionally(e);
-                            ctx.close();
-                            return;
-                        }
-                        emitProgress();
+                    } else if (statusCode >= 300 && statusCode < 400) {
+                        String location = response.headers().get(HttpHeaderNames.LOCATION);
+                        future.completeExceptionally(new DownloadRedirectException(statusCode, location));
+                        ctx.close();
+                        return;
                     } else {
                         future.completeExceptionally(new IOException("HTTP " + statusCode + " for " + requestTarget));
                         ctx.close();
@@ -1235,7 +1272,7 @@ public final class NettyHttpUtils {
             FullHttpRequest request = new DefaultFullHttpRequest(
                     HttpVersion.HTTP_1_1, HttpMethod.GET, requestTarget);
             request.headers().set(HttpHeaderNames.HOST, hostHeader);
-            request.headers().set(HttpHeaderNames.USER_AGENT, "Mozilla/5.0 (compatible; NettyHttpUtils/1.0)");
+            request.headers().set(HttpHeaderNames.USER_AGENT, UserAgentUtils.random());
             request.headers().set(HttpHeaderNames.ACCEPT, "*/*");
             request.headers().set(HttpHeaderNames.ACCEPT_ENCODING, "identity");
             for (Map.Entry<String, String> entry : headers.entrySet()) {
@@ -1280,9 +1317,11 @@ public final class NettyHttpUtils {
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
-            if (!future.isDone()) {
+            if (!future.isCompletedExceptionally()) {
                 cleanup();
-                future.completeExceptionally(new IOException("Connection closed unexpectedly"));
+                if (!future.isDone()) {
+                    future.completeExceptionally(new IOException("Connection closed unexpectedly"));
+                }
             }
         }
     }
