@@ -1,13 +1,8 @@
 package org.mark.file.downloader;
 
-import java.io.Serial;
-import java.io.Serializable;
 import java.util.Objects;
 
-public class DownloadTaskInfo implements Serializable {
-
-	@Serial
-	private static final long serialVersionUID = 1L;
+public class DownloadTaskInfo {
 
 	private String taskId;
 	private String sourceUrl;

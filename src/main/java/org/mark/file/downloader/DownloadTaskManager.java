@@ -2,10 +2,6 @@ package org.mark.file.downloader;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serial;
-import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -19,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,11 +24,13 @@ public class DownloadTaskManager implements Closeable {
 
 	private static final Logger logger = LoggerFactory.getLogger(DownloadTaskManager.class);
 
+	private static final Gson GSON = new Gson();
+
 	private static final DownloadTaskManager INSTANCE;
 	static {
 		try {
 			INSTANCE = new DownloadTaskManager(
-					Path.of(System.getProperty("user.dir"), "cache", "tasks.cache"),
+					Path.of(System.getProperty("user.dir"), "cache", "tasks.json"),
 					Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
 		} catch (IOException e) {
 			throw new RuntimeException("初始化下载任务管理器失败", e);
@@ -578,42 +578,31 @@ public class DownloadTaskManager implements Closeable {
 			return;
 		}
 		synchronized (this.fileLock) {
-			try (ObjectInputStream input = new ObjectInputStream(Files.newInputStream(this.cacheFile))) {
-				TaskCache cache = (TaskCache) input.readObject();
-				this.taskStore.clear();
-				for (DownloadTaskInfo task : cache.tasks) {
-					if (task.getStatus() == DownloadTaskStatus.RUNNING) {
-						task.setStatus(DownloadTaskStatus.PAUSED);
-						task.setErrorMessage("程序重启后任务重置为暂停");
-						task.setUpdatedAt(System.currentTimeMillis());
-					}
-					this.taskStore.put(task.getTaskId(), task);
+			String json = Files.readString(this.cacheFile);
+			List<DownloadTaskInfo> tasks = GSON.fromJson(json, new TypeToken<List<DownloadTaskInfo>>(){}.getType());
+			if (tasks == null) {
+				return;
+			}
+			this.taskStore.clear();
+			for (DownloadTaskInfo task : tasks) {
+				if (task.getStatus() == DownloadTaskStatus.RUNNING) {
+					task.setStatus(DownloadTaskStatus.PAUSED);
+					task.setErrorMessage("程序重启后任务重置为暂停");
+					task.setUpdatedAt(System.currentTimeMillis());
 				}
-			} catch (ClassNotFoundException e) {
-				throw new IOException("读取任务缓存失败", e);
+				this.taskStore.put(task.getTaskId(), task);
 			}
 		}
 	}
 
 	private void persistToCache() throws IOException {
 		synchronized (this.fileLock) {
-			TaskCache cache = new TaskCache(new ArrayList<>(this.taskStore.values()));
-			try (ObjectOutputStream output = new ObjectOutputStream(Files.newOutputStream(this.cacheFile))) {
-				output.writeObject(cache);
-			}
+			List<DownloadTaskInfo> tasks = new ArrayList<>(this.taskStore.values());
+			String json = GSON.toJson(tasks);
+			Files.writeString(this.cacheFile, json);
 		}
 	}
 
 	private record RuntimeTaskContext(SimpleHttpDownloader downloader, Future<?> future) {
-	}
-
-	private static class TaskCache implements Serializable {
-		@Serial
-		private static final long serialVersionUID = 1L;
-		private final List<DownloadTaskInfo> tasks;
-
-		private TaskCache(List<DownloadTaskInfo> tasks) {
-			this.tasks = tasks;
-		}
 	}
 }
