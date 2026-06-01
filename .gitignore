@@ -13,3 +13,4 @@
 /build/
 /llamacpp/
 /ssl/
+/src/main/resources/tools/gguf-mem
