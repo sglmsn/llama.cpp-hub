@@ -61,6 +61,29 @@
         buildModelFilter();
     }
 
+    async function deleteModelRecords(modelId) {
+        try {
+            const resp = await fetch('/api/report/records', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modelId: modelId })
+            });
+            const result = await resp.json();
+            if (!result || !result.success) {
+                toast(t('report.delete_failed', '删除记录失败'), result ? (result.error || result.message || '') : '', 'error');
+            } else {
+                if (selectedModelId === modelId) {
+                    selectedModelId = '';
+                }
+                toast(t('report.delete_success', '已删除 {count} 条记录').replace('{count}', (result.data && result.data.deletedCount) || 0), '', 'success');
+            }
+        } catch (e) {
+            toast(t('report.delete_failed', '删除记录失败'), e.message, 'error');
+        }
+        await fetchTokenSummary();
+        fetchDailyTokens();
+    }
+
     async function fetchDailyTokens() {
         const year = document.getElementById('dailyYearSelect').value;
         const month = document.getElementById('dailyMonthSelect').value;
@@ -332,6 +355,7 @@
                 + '<span class="tk-cache">' + t('report.cache_label', '缓存') + ' ' + (m.totalCacheTokens || 0).toLocaleString() + '</span>'
                 + draftHtml
                 + '</div>'
+                + '<button class="token-card-delete-btn" data-model-id="' + escapeAttr(m.modelId || '') + '" title="' + t('report.confirm_delete_model', '确认删除模型「{model}」的全部记录吗？').replace('{model}', escapeHtml(m.modelId || '')) + '"><i class="fas fa-trash-can"></i></button>'
                 + '</div>';
         });
         if (!cardHtml) {
@@ -351,6 +375,18 @@
                 }
                 renderTokenSummary();
                 fetchDailyTokens();
+            };
+        }
+
+        // Bind delete button handlers
+        const delBtns = body.querySelectorAll('.token-card-delete-btn');
+        for (const btn of delBtns) {
+            btn.onclick = function (e) {
+                e.stopPropagation();
+                const modelId = this.dataset.modelId || '';
+                if (!modelId) return;
+                if (!window.confirm(t('report.confirm_delete_model', '确认删除模型「{model}」的全部记录吗？').replace('{model}', modelId))) return;
+                deleteModelRecords(modelId);
             };
         }
 
