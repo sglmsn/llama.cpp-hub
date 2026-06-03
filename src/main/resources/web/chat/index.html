@@ -121,8 +121,11 @@
                   </svg>
                 </button>
                 <div id="thinkingMenu" class="thinking-menu" role="menu" aria-hidden="true">
-                  <button class="thinking-menu-item" type="button" data-thinking-value="true" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_on">开启</button>
-                  <button class="thinking-menu-item" type="button" data-thinking-value="false" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_off">关闭</button>
+                  <button class="thinking-menu-item" type="button" data-thinking-value="unlimited" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_unlimited">无限制</button>
+                  <button class="thinking-menu-item" type="button" data-thinking-value="8192" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_high">高 (8192 tokens)</button>
+                  <button class="thinking-menu-item" type="button" data-thinking-value="2048" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_medium">中 (2048 tokens)</button>
+                  <button class="thinking-menu-item" type="button" data-thinking-value="512" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_low">低 (512 tokens)</button>
+                  <button class="thinking-menu-item" type="button" data-thinking-value="off" role="menuitemradio" data-i18n="page.chat.main.composer.thinking_off">关闭</button>
                 </div>
               </div>
               <button id="micRecorderBtn" class="icon-button toolbar-icon-button" type="button" aria-label="录音" title="录音" data-i18n-attr="aria-label,title" data-i18n="page.chat.main.composer.record">
@@ -533,7 +536,7 @@
       stopSequences: '',
       stream: true,
       streamRender: true,
-      enableThinking: false,
+      enableThinking: 'off',
       enableTimestamp: false,
      enableTitleGen: false,
        titleGenModel: '',
@@ -1385,7 +1388,7 @@
         stopSequences: typeof assistant?.stopSequences === 'string' ? assistant.stopSequences : typeof fallback?.stopSequences === 'string' ? fallback.stopSequences : '',
         stream: typeof assistant?.stream === 'boolean' ? assistant.stream : typeof fallback?.stream === 'boolean' ? fallback.stream : true,
         streamRender: typeof assistant?.streamRender === 'boolean' ? assistant.streamRender : typeof fallback?.streamRender === 'boolean' ? fallback.streamRender : true,
-        enableThinking: typeof assistant?.enableThinking === 'boolean' ? assistant.enableThinking : typeof fallback?.enableThinking === 'boolean' ? fallback.enableThinking : false,
+       enableThinking: normalizeThinkingLevel(assistant?.enableThinking) || normalizeThinkingLevel(fallback?.enableThinking) || 'off',
         enableTimestamp: typeof assistant?.enableTimestamp === 'boolean' ? assistant.enableTimestamp : typeof fallback?.enableTimestamp === 'boolean' ? fallback.enableTimestamp : false,
         systemPrompt: typeof assistant?.systemPrompt === 'string' ? assistant.systemPrompt : typeof fallback?.systemPrompt === 'string' ? fallback.systemPrompt : '',
         mcpServerUrls: normalizeMcpAssistantUrls(assistant, fallback),
@@ -1408,7 +1411,7 @@
         stopSequences: typeof saved?.stopSequences === 'string' ? saved.stopSequences : '',
         stream: typeof saved?.stream === 'boolean' ? saved.stream : true,
         streamRender: typeof saved?.streamRender === 'boolean' ? saved.streamRender : true,
-        enableThinking: typeof saved?.enableThinking === 'boolean' ? saved.enableThinking : false,
+       enableThinking: normalizeThinkingLevel(saved?.enableThinking) || 'off',
         enableTimestamp: typeof saved?.enableTimestamp === 'boolean' ? saved.enableTimestamp : false,
         systemPrompt: typeof saved?.systemPrompt === 'string' ? saved.systemPrompt : ''
       });
@@ -2099,7 +2102,7 @@
       state.stopSequences = assistant?.stopSequences || '';
       state.stream = typeof assistant?.stream === 'boolean' ? assistant.stream : true;
       state.streamRender = typeof assistant?.streamRender === 'boolean' ? assistant.streamRender : true;
-      state.enableThinking = !!assistant?.enableThinking;
+      state.enableThinking = normalizeThinkingLevel(assistant?.enableThinking) || 'off';
       state.enableTimestamp = !!assistant?.enableTimestamp;
       state.systemPrompt = assistant?.systemPrompt || '';
       state.mcpServerUrls = normalizeMcpAssistantUrls(assistant);
@@ -2126,7 +2129,7 @@
       assistant.stopSequences = state.stopSequences;
       assistant.stream = !!state.stream;
       assistant.streamRender = !!state.streamRender;
-      assistant.enableThinking = !!state.enableThinking;
+     assistant.enableThinking = state.enableThinking;
       assistant.enableTimestamp = !!state.enableTimestamp;
       assistant.systemPrompt = state.systemPrompt;
       assistant.mcpServerUrls = normalizeMcpAssistantUrls({ mcpServerUrls: state.mcpServerUrls });
@@ -2236,6 +2239,14 @@
         Object.assign(next, normalized);
       }
       return Object.keys(next).length ? next : null;
+    }
+
+    function normalizeThinkingLevel(value) {
+      if (value === true || value === 'true') return 'unlimited';
+      if (value === false || value === 'false' || value === 'off') return 'off';
+      if (['512', '2048', '8192'].includes(String(value))) return String(value);
+      if (value === 'unlimited') return 'unlimited';
+      return null;
     }
 
     function parsePromptProgress(value) {
@@ -2798,13 +2809,13 @@
 
     function renderThinkingMenu() {
       if (els.thinkingToggleBtn) {
-        els.thinkingToggleBtn.classList.toggle('active', !!state.enableThinking);
+        els.thinkingToggleBtn.classList.toggle('active', state.enableThinking !== 'off');
       }
       if (els.thinkingMenu) {
         const items = els.thinkingMenu.querySelectorAll('[data-thinking-value]');
         items.forEach(item => {
-          const enabled = item.getAttribute('data-thinking-value') === 'true';
-          const selected = enabled === !!state.enableThinking;
+          const value = item.getAttribute('data-thinking-value');
+          const selected = value === state.enableThinking;
           item.classList.toggle('active', selected);
           item.setAttribute('aria-checked', selected ? 'true' : 'false');
         });
@@ -2824,6 +2835,10 @@
       if (!els.thinkingMenu || !els.thinkingToggleBtn) {
         return;
       }
+      const active = document.activeElement;
+      if (active && els.thinkingMenu.contains(active)) {
+        els.thinkingToggleBtn.focus();
+      }
       els.thinkingMenu.classList.remove('open');
       els.thinkingMenu.setAttribute('aria-hidden', 'true');
       els.thinkingToggleBtn.setAttribute('aria-expanded', 'false');
@@ -2838,7 +2853,7 @@
     }
 
     async function setEnableThinking(value) {
-      state.enableThinking = !!value;
+      state.enableThinking = normalizeThinkingLevel(value) || 'off';
       syncCurrentAssistantFromRuntimeState();
       renderThinkingMenu();
       closeThinkingMenu();
@@ -4969,12 +4984,16 @@
       const sep = compositeKey.lastIndexOf('::');
       const bareModelId = sep >= 0 ? compositeKey.substring(0, sep) : compositeKey;
       const nd = sep >= 0 ? compositeKey.substring(sep + 2) : '';
+      const thinkingLevel = normalizeThinkingLevel(assistant?.enableThinking) || 'off';
       const payload = {
         model: bareModelId,
         messages,
         stream: !!assistant?.stream,
-        enable_thinking: !!assistant?.enableThinking
+        enable_thinking: thinkingLevel !== 'off'
       };
+      if (thinkingLevel !== 'off' && thinkingLevel !== 'unlimited') {
+        payload.thinking_budget_tokens = Number(thinkingLevel);
+      }
       if (payload.stream) {
         payload.return_progress = true;
         payload.timings_per_token = true;
@@ -6311,7 +6330,7 @@ function confirmAudioRecording() {
       document.addEventListener('click', event => {
         const thinkingItem = event.target.closest('.thinking-menu-item[data-thinking-value]');
         if (thinkingItem) {
-          void setEnableThinking(thinkingItem.dataset.thinkingValue === 'true');
+          void setEnableThinking(thinkingItem.dataset.thinkingValue);
           return;
         }
         if (!event.target.closest('#thinkingMenuWrap')) {

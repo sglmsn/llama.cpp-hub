@@ -544,7 +544,7 @@ button { cursor: pointer; }
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  min-width: 110px;
+  min-width: 200px;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) + 2px);
@@ -562,12 +562,13 @@ button { cursor: pointer; }
 
 .thinking-menu-item {
   width: 100%;
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 12px;
   border: none;
   border-radius: calc(var(--radius) - 2px);
   background: transparent;
   text-align: left;
+  font-size: 13px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
