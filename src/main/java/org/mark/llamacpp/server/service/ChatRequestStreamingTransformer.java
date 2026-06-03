@@ -507,32 +507,53 @@ public class ChatRequestStreamingTransformer {
 	/**
 	 * 	
 	 */
-	private static class LimitedByteArrayOutputStream extends ByteArrayOutputStream {
+	private static class LimitedByteArrayOutputStream extends OutputStream {
 
 		private final int limit;
 		private final String fieldName;
+		private byte[] buf;
+		private int count;
 
 		private LimitedByteArrayOutputStream(int limit, String fieldName) {
 			this.limit = limit;
 			this.fieldName = fieldName;
+			this.buf = new byte[Math.min(1024, limit)];
+			this.count = 0;
 		}
 
 		@Override
 		public synchronized void write(int b) {
-			this.ensureCapacity(1);
-			super.write(b);
+			if (this.count + 1 > this.limit) {
+				throw new IllegalStateException("Top-level field too large: " + this.fieldName);
+			}
+			if (this.count == this.buf.length) {
+				int newCap = Math.min((int) (this.buf.length * 1.5), this.limit);
+				if (newCap <= this.buf.length) {
+					newCap = this.limit;
+				}
+				this.buf = java.util.Arrays.copyOf(this.buf, newCap);
+			}
+			this.buf[this.count++] = (byte) b;
 		}
 
 		@Override
 		public synchronized void write(byte[] b, int off, int len) {
-			this.ensureCapacity(len);
-			super.write(b, off, len);
+			if (this.count + len > this.limit) {
+				throw new IllegalStateException("Top-level field too large: " + this.fieldName);
+			}
+			if (this.count + len > this.buf.length) {
+				int newCap = Math.min((int) ((this.count + len) * 1.5), this.limit);
+				if (newCap <= this.buf.length) {
+					newCap = this.limit;
+				}
+				this.buf = java.util.Arrays.copyOf(this.buf, newCap);
+			}
+			System.arraycopy(b, off, this.buf, this.count, len);
+			this.count += len;
 		}
 
-		private void ensureCapacity(int delta) {
-			if (this.count + delta > this.limit) {
-				throw new IllegalStateException("Top-level field too large: " + fieldName);
-			}
+		public byte[] toByteArray() {
+			return java.util.Arrays.copyOf(this.buf, this.count);
 		}
 	}
 }

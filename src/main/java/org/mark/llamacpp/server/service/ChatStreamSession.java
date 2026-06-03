@@ -1,9 +1,9 @@
 package org.mark.llamacpp.server.service;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.util.Arrays;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -42,7 +42,7 @@ public class ChatStreamSession {
 	 */
 	private static final ExecutorService worker = Executors.newVirtualThreadPerTaskExecutor();
 
-	private static final int INPUT_QUEUE_CAPACITY = 32;
+	private static final int INPUT_QUEUE_CAPACITY = 8;
 	private static final int MAX_SMALL_FIELD_BYTES = 1024 * 1024;
 	private static final int MAX_BUFFERED_FIELD_BYTES = 4 * 1024 * 1024;
 	private static final int DEFERRED_MEMORY_LIMIT = 256 * 1024;
@@ -370,7 +370,7 @@ public class ChatStreamSession {
 	private static class DeferredConnectionOutputStream extends OutputStream {
 
 		private final int memoryLimit;
-		private final ByteArrayOutputStream memoryBuffer = new ByteArrayOutputStream();
+		private final SimpleBufferStream memoryBuffer = new SimpleBufferStream();
 		private OutputStream target;
 		private OutputStream spoolOutput;
 		private Path spoolFile;
@@ -397,7 +397,7 @@ public class ChatStreamSession {
 				this.spoolFile = null;
 			} else if (this.memoryBuffer.size() > 0) {
 				this.memoryBuffer.writeTo(this.target);
-				this.memoryBuffer.reset();
+				this.memoryBuffer.release();
 			}
 			this.target.flush();
 		}
@@ -479,7 +479,50 @@ public class ChatStreamSession {
 			this.spoolFile = Files.createTempFile("llama-chat-stream-", ".json");
 			this.spoolOutput = Files.newOutputStream(this.spoolFile);
 			this.memoryBuffer.writeTo(this.spoolOutput);
-			this.memoryBuffer.reset();
+			this.memoryBuffer.release();
+		}
+	}
+
+	public static class SimpleBufferStream {
+
+		private byte[] buf;
+		private int count;
+
+		SimpleBufferStream() {
+			this.buf = new byte[1024];
+			this.count = 0;
+		}
+
+		public synchronized void write(int b) {
+			if (this.count == this.buf.length) {
+				this.buf = Arrays.copyOf(this.buf, Math.min(this.buf.length * 2, 256 * 1024));
+			}
+			this.buf[this.count++] = (byte) b;
+		}
+
+		public synchronized void write(byte[] b, int off, int len) {
+			if (this.count + len > this.buf.length) {
+				int newCap = Math.min(this.buf.length * 2, 256 * 1024);
+				if (newCap < this.count + len) {
+					newCap = this.count + len;
+				}
+				this.buf = Arrays.copyOf(this.buf, newCap);
+			}
+			System.arraycopy(b, off, this.buf, this.count, len);
+			this.count += len;
+		}
+
+		public synchronized void writeTo(OutputStream target) throws IOException {
+			target.write(this.buf, 0, this.count);
+		}
+
+		public synchronized int size() {
+			return this.count;
+		}
+
+		public synchronized void release() {
+			this.buf = null;
+			this.count = 0;
 		}
 	}
 }

@@ -2,7 +2,6 @@ package org.mark.llamacpp.server.io;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,10 +31,9 @@ public class BoundedQueueInputStream extends InputStream {
 		if (closed.get()) {
 			throw new IOException("stream closed");
 		}
-		byte[] copy = Arrays.copyOf(chunk, chunk.length);
 		try {
 			while (!closed.get()) {
-				if (queue.offer(copy, 100, TimeUnit.MILLISECONDS)) {
+				if (queue.offer(chunk, 100, TimeUnit.MILLISECONDS)) {
 					return;
 				}
 				if (failure != null) {
