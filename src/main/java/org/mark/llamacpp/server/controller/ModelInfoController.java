@@ -214,6 +214,8 @@ public class ModelInfoController implements BaseController {
                     item.put("modelId", entry.getModelId());
                     item.put("maxPredictedPerSecond", entry.getMaxPredictedPerSecond());
                     item.put("maxPromptPerSecond", entry.getMaxPromptPerSecond());
+                    item.put("averagePredictedPerSecond", entry.getAveragePredictedPerSecond());
+                    item.put("averagePromptPerSecond", entry.getAveragePromptPerSecond());
                     list.add(item);
                 }
                 LlamaServer.sendJsonResponse(ctx, ApiResponse.success(list));
@@ -224,6 +226,8 @@ public class ModelInfoController implements BaseController {
             data.put("modelId", modelId);
             data.put("maxPredictedPerSecond", entry != null ? entry.getMaxPredictedPerSecond() : 0f);
             data.put("maxPromptPerSecond", entry != null ? entry.getMaxPromptPerSecond() : 0f);
+            data.put("averagePredictedPerSecond", entry != null ? entry.getAveragePredictedPerSecond() : 0d);
+            data.put("averagePromptPerSecond", entry != null ? entry.getAveragePromptPerSecond() : 0d);
             LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
         } catch (Exception e) {
             logger.info("获取模型最快速度时发生错误", e);

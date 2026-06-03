@@ -12,6 +12,9 @@ public class TokenSummaryEntry {
 	private long totalDraftAccepted;
 	private float maxPredictedPerSecond;
 	private float maxPromptPerSecond;
+	private double totalPredictedPerSecond;
+	private double totalPromptPerSecond;
+	private long recordCount;
 
 	public String getModelId() {
 		return modelId;
@@ -99,5 +102,37 @@ public class TokenSummaryEntry {
 
     public void setMaxPromptPerSecond(float maxPromptPerSecond) {
         this.maxPromptPerSecond = maxPromptPerSecond;
+    }
+
+    public double getTotalPredictedPerSecond() {
+        return totalPredictedPerSecond;
+    }
+
+    public void setTotalPredictedPerSecond(double totalPredictedPerSecond) {
+        this.totalPredictedPerSecond = totalPredictedPerSecond;
+    }
+
+    public double getTotalPromptPerSecond() {
+        return totalPromptPerSecond;
+    }
+
+    public void setTotalPromptPerSecond(double totalPromptPerSecond) {
+        this.totalPromptPerSecond = totalPromptPerSecond;
+    }
+
+    public long getRecordCount() {
+        return recordCount;
+    }
+
+    public void setRecordCount(long recordCount) {
+        this.recordCount = recordCount;
+    }
+
+    public double getAveragePredictedPerSecond() {
+        return recordCount > 0 ? totalPredictedPerSecond / recordCount : 0;
+    }
+
+    public double getAveragePromptPerSecond() {
+        return recordCount > 0 ? totalPromptPerSecond / recordCount : 0;
     }
 }

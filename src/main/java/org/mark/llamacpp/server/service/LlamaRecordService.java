@@ -73,6 +73,9 @@ public class LlamaRecordService {
 					entry.setTotalDraftAccepted(log.getTotalDraftAccepted());
 					entry.setMaxPredictedPerSecond(log.getMaxPredictedPerSecond());
 					entry.setMaxPromptPerSecond(log.getMaxPromptPerSecond());
+					entry.setTotalPredictedPerSecond(log.getTotalPredictedPerSecond());
+					entry.setTotalPromptPerSecond(log.getTotalPromptPerSecond());
+					entry.setRecordCount(log.getRecordCount());
 					this.tokenSummaryCache.put(modelId, entry);
 				} catch (Exception ignore) {
 				}
@@ -107,12 +110,17 @@ public class LlamaRecordService {
 		entry.setTotalPredictedMs(entry.getTotalPredictedMs() + record.predictedMs);
 		entry.setTotalDraftTokens(entry.getTotalDraftTokens() + record.draftN);
 		entry.setTotalDraftAccepted(entry.getTotalDraftAccepted() + record.draftNAccepted);
-		if (record.draftN == 0 && record.predictedPerSecond > entry.getMaxPredictedPerSecond()) {
+		if (record.predictedN > 1 && record.draftN == 0 && record.predictedPerSecond > entry.getMaxPredictedPerSecond()) {
 			entry.setMaxPredictedPerSecond(record.predictedPerSecond);
 		}
-		if (record.draftN == 0 && record.promptPerSecond > entry.getMaxPromptPerSecond()) {
+		if (record.predictedN > 1 && record.draftN == 0 && record.promptPerSecond > entry.getMaxPromptPerSecond()) {
 			entry.setMaxPromptPerSecond(record.promptPerSecond);
 		}
+		if (record.predictedN > 1) {
+			entry.setTotalPredictedPerSecond(entry.getTotalPredictedPerSecond() + record.predictedPerSecond);
+			entry.setTotalPromptPerSecond(entry.getTotalPromptPerSecond() + record.promptPerSecond);
+		}
+		entry.setRecordCount(entry.getRecordCount() + 1);
 	}
 
     private BinaryRequestLog getLog(String modelId) throws IOException {

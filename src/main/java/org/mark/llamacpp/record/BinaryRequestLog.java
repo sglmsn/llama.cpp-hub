@@ -36,6 +36,8 @@ public class BinaryRequestLog implements Closeable {
     private double totalPredictedMs;
     private float maxPredictedPerSecond;
     private float maxPromptPerSecond;
+    private double totalPredictedPerSecond;
+    private double totalPromptPerSecond;
 
     public BinaryRequestLog(Path filePath) throws IOException {
         this.channel = FileChannel.open(filePath,
@@ -65,7 +67,9 @@ public class BinaryRequestLog implements Closeable {
         buf.putDouble(0);
         buf.putFloat(0);
         buf.putFloat(0);
-        buf.put(new byte[128]);
+        buf.putDouble(0);
+        buf.putDouble(0);
+        buf.put(new byte[112]);
         synchronized (this.channel) {
             this.channel.position(0);
             buf.flip();
@@ -101,9 +105,13 @@ public class BinaryRequestLog implements Closeable {
         if (version >= 2) {
             this.maxPredictedPerSecond = buf.getFloat();
             this.maxPromptPerSecond = buf.getFloat();
+            this.totalPredictedPerSecond = buf.getDouble();
+            this.totalPromptPerSecond = buf.getDouble();
         } else {
             this.maxPredictedPerSecond = 0;
             this.maxPromptPerSecond = 0;
+            this.totalPredictedPerSecond = 0;
+            this.totalPromptPerSecond = 0;
         }
     }
 
@@ -123,7 +131,9 @@ public class BinaryRequestLog implements Closeable {
         buf.putDouble(this.totalPredictedMs);
         buf.putFloat(this.maxPredictedPerSecond);
         buf.putFloat(this.maxPromptPerSecond);
-        buf.put(new byte[128]);
+        buf.putDouble(this.totalPredictedPerSecond);
+        buf.putDouble(this.totalPromptPerSecond);
+        buf.put(new byte[112]);
         synchronized (this.channel) {
             this.channel.position(0);
             buf.flip();
@@ -260,11 +270,15 @@ public class BinaryRequestLog implements Closeable {
         this.lastRecordTime = startTime;
         this.totalPromptMs += promptMs;
         this.totalPredictedMs += predictedMs;
-        if (draftN == 0 && predictedPerSecond > this.maxPredictedPerSecond) {
+        if (predictedN > 1 && draftN == 0 && predictedPerSecond > this.maxPredictedPerSecond) {
             this.maxPredictedPerSecond = predictedPerSecond;
         }
-        if (draftN == 0 && promptPerSecond > this.maxPromptPerSecond) {
+        if (predictedN > 1 && draftN == 0 && promptPerSecond > this.maxPromptPerSecond) {
             this.maxPromptPerSecond = promptPerSecond;
+        }
+        if (predictedN > 1) {
+            this.totalPredictedPerSecond += predictedPerSecond;
+            this.totalPromptPerSecond += promptPerSecond;
         }
         writeHeader();
     }
@@ -394,6 +408,14 @@ public class BinaryRequestLog implements Closeable {
         return this.maxPromptPerSecond;
     }
 
+    public double getTotalPredictedPerSecond() {
+        return this.totalPredictedPerSecond;
+    }
+
+    public double getTotalPromptPerSecond() {
+        return this.totalPromptPerSecond;
+    }
+
     /**
      * Migrate V1 header to V2 by scanning all records for max speed values,
      * then rewrite header + all records to account for the larger header size.
@@ -438,6 +460,8 @@ public class BinaryRequestLog implements Closeable {
             long recordCount = (fileSize - HEADER_SIZE_V1) / RECORD_SIZE;
             float maxPredicted = 0;
             float maxPrompt = 0;
+            double totalPredictedSpeed = 0;
+            double totalPromptSpeed = 0;
             byte[][] records = new byte[(int) recordCount][];
             if (recordCount > 0) {
                 ByteBuffer recBuf = ByteBuffer.allocate(RECORD_SIZE);
@@ -457,17 +481,21 @@ public class BinaryRequestLog implements Closeable {
                     recBuf.getFloat();
                     recBuf.getFloat();
                     float promptPerSecond = recBuf.getFloat();
-                    recBuf.getInt();
+                    int predictedN = recBuf.getInt();
                     recBuf.getFloat();
                     recBuf.getFloat();
                     float predictedPerSecond = recBuf.getFloat();
                     int draftN = recBuf.getInt();
                     recBuf.getInt();
-                    if (draftN == 0 && predictedPerSecond > maxPredicted) {
+                    if (predictedN > 1 && draftN == 0 && predictedPerSecond > maxPredicted) {
                         maxPredicted = predictedPerSecond;
                     }
-                    if (draftN == 0 && promptPerSecond > maxPrompt) {
+                    if (predictedN > 1 && draftN == 0 && promptPerSecond > maxPrompt) {
                         maxPrompt = promptPerSecond;
+                    }
+                    if (predictedN > 1) {
+                        totalPredictedSpeed += predictedPerSecond;
+                        totalPromptSpeed += promptPerSecond;
                     }
                     recBuf.clear();
                 }
@@ -487,7 +515,9 @@ public class BinaryRequestLog implements Closeable {
             newHdr.putDouble(vTotalPredictedMs);
             newHdr.putFloat(maxPredicted);
             newHdr.putFloat(maxPrompt);
-            newHdr.put(new byte[128]);
+            newHdr.putDouble(totalPredictedSpeed);
+            newHdr.putDouble(totalPromptSpeed);
+            newHdr.put(new byte[112]);
             ch.position(0);
             newHdr.flip();
             ch.write(newHdr);

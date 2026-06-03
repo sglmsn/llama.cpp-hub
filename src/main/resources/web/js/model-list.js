@@ -104,8 +104,8 @@ function loadModels() {
                                     var speedEntry = speedMap[speedKey];
                                     return {
                                         ...m,
-                                        maxPredictedPerSecond: speedEntry ? speedEntry.maxPredictedPerSecond : 0,
-                                        maxPromptPerSecond: speedEntry ? speedEntry.maxPromptPerSecond : 0
+                                        averagePredictedPerSecond: speedEntry ? speedEntry.averagePredictedPerSecond : 0,
+                                        averagePromptPerSecond: speedEntry ? speedEntry.averagePromptPerSecond : 0
                                     };
                                 });
                                 sortAndRenderModels();
@@ -472,7 +472,7 @@ function renderModelsList(models) {
         const badges = `${model.supportsVision ? '<span class="vision-badge"><i class="fas fa-image"></i></span>' : ''}${model.supportsAudio ? '<span class="audio-badge"><i class="fas fa-headphones"></i></span>' : ''}${model.hasMtp ? '<span class="mtp-badge">MTP</span>' : ''}`;
         const hasBadges = badges.length > 0;
         const nameClickAttr = `onclick="openAliasModal(decodeURIComponent('${encodeURIComponent(model.id)}'), decodeURIComponent('${encodeURIComponent(model.name)}'), decodeURIComponent('${encodeURIComponent(model.alias || '')}'), '${nodeId || 'local'}')"`;
-const speedHtml = (model.maxPromptPerSecond ? `<span class="model-meta-prompt-speed" title="最快预填充速度">In ${model.maxPromptPerSecond.toFixed(0)} t/s</span>` : '') + (model.maxPredictedPerSecond ? `<span class="model-meta-predicted-speed" title="最快解码速度">Out ${model.maxPredictedPerSecond.toFixed(1)} t/s</span>` : '');
+const speedHtml = (model.averagePromptPerSecond ? `<span class="model-meta-prompt-speed" title="平均预填充速度">In ${model.averagePromptPerSecond.toFixed(0)} t/s</span>` : '') + (model.averagePredictedPerSecond ? `<span class="model-meta-predicted-speed" title="平均解码速度">Out ${model.averagePredictedPerSecond.toFixed(1)} t/s</span>` : '');
         const hasSpeed = speedHtml.length > 0;
         const metaBlock = `<div class="model-meta">
                                   <span><i class="fas fa-layer-group"></i> ${architecture}</span>
