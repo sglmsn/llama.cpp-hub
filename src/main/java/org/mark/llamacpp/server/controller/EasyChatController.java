@@ -142,24 +142,32 @@ public class EasyChatController implements BaseController {
 			Path stateDir = this.getStateDirPath();
 			Path stateFile = this.getStateFilePath(stateDir);
 			Path conversationDir = this.getConversationDirPath(stateDir);
-			JsonObject conversation;
 			String revision;
+			String storageKey;
 			synchronized (STATE_LOCK) {
-				JsonObject storedState = this.readJsonObjectIfExists(stateFile);
-				JsonObject summary = this.findConversationSummaryById(storedState, conversationId);
-				String storageKey = this.resolveConversationStorageKey(summary, conversationId);
-				Path conversationFile = this.getConversationFilePath(conversationDir, storageKey);
-				if (!Files.exists(conversationFile)) {
-					throw new IllegalStateException("会话不存在: " + conversationId);
-				}
-				JsonObject storedConversation = this.readJsonObject(conversationFile);
-				conversation = this.mergeConversationWithSummary(summary, storedConversation, conversationId);
-				revision = this.resolveStateRevision(stateFile, storedState);
+	JsonObject storedState = this.readJsonObjectIfExists(stateFile);
+			JsonObject summary = this.findConversationSummaryById(storedState, conversationId);
+			storageKey = this.resolveConversationStorageKey(summary, conversationId);
+			revision = this.resolveStateRevision(stateFile, storedState);
+		}
+		Path conversationFile = this.getConversationFilePath(conversationDir, storageKey);
+		// Fallback: try conversationId directly (may have been saved by EasyChatHandler)
+		if (!Files.exists(conversationDir)) {
+			Files.createDirectories(conversationDir);
+		}
+		if (!Files.exists(conversationFile)) {
+			String fallbackKey = conversationId.trim();
+			if (!fallbackKey.equals(storageKey)) {
+				conversationFile = this.getConversationFilePath(conversationDir, fallbackKey);
 			}
-			Map<String, Object> data = new HashMap<>();
-			data.put("conversation", conversation);
-			data.put("revision", revision);
-			LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
+		}
+		if (!Files.exists(conversationFile)) {
+			throw new IllegalStateException("会话不存在: " + conversationId);
+		}
+			String prefix = "{\"success\":true,\"data\":{\"conversation\":";
+			String escapedRevision = revision.replace("\\", "\\\\").replace("\"", "\\\"");
+			String suffix = ",\"revision\":\"" + escapedRevision + "\"}}";
+			LlamaServer.sendStreamedJsonResponse(ctx, prefix, conversationFile, suffix);
 		} catch (Exception e) {
 			logger.info("加载 easy-chat 会话失败", e);
 			LlamaServer.sendJsonResponse(ctx, ApiResponse.error("加载 easy-chat 会话失败: " + e.getMessage()));
@@ -458,6 +466,9 @@ public class EasyChatController implements BaseController {
 			return key;
 		}
 		String source = conversationId == null ? "" : conversationId.trim();
+		if (!source.isEmpty() && source.matches("[A-Za-z0-9_-]+")) {
+			return source;
+		}
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(source.getBytes(StandardCharsets.UTF_8));
 	}
 

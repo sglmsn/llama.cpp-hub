@@ -52,6 +52,8 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -64,6 +66,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -1551,6 +1554,31 @@ public class LlamaServer {
 		payload.put("status", "error");
 		payload.put("message", message == null ? "" : message);
 		sendJsonResponseInternal(ctx, status == null ? HttpResponseStatus.INTERNAL_SERVER_ERROR : status, payload);
+	}
+
+	/**
+	 * 流式发送 JSON 响应：prefix → 文件内容 → suffix。
+	 * 用于大文件（如含 base64 图片的会话）的零拷贝传输，避免 OOM。
+	 */
+	public static void sendStreamedJsonResponse(
+			ChannelHandlerContext ctx, String prefix, Path file, String suffix) throws IOException {
+		HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+		response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
+		setCorsHeaders(response.headers());
+
+		ctx.write(response);
+
+		ByteBuf prefixBuf = Unpooled.copiedBuffer(prefix, StandardCharsets.UTF_8);
+		ctx.write(new DefaultHttpContent(prefixBuf));
+
+		RandomAccessFile raf = new RandomAccessFile(file.toFile(), "r");
+		long fileLength = raf.length();
+		ctx.write(new ChunkedFile(raf, 0, fileLength, 8192));
+
+		ByteBuf suffixBuf = Unpooled.copiedBuffer(suffix, StandardCharsets.UTF_8);
+		ctx.write(new DefaultHttpContent(suffixBuf));
+
+		ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT).addListener(future -> ctx.close());
 	}
 	
 	

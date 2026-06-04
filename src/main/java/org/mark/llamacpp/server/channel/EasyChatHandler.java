@@ -1,5 +1,6 @@
 package org.mark.llamacpp.server.channel;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
@@ -31,13 +33,21 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.TooLongFrameException;
 import io.netty.util.ReferenceCountUtil;
 
 /**
@@ -54,11 +64,18 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
     private static final int COPY_BUFFER_SIZE = 8192;
 
     private static final ExecutorService worker = Executors.newVirtualThreadPerTaskExecutor();
+    private static final Object SAVE_LOCK = new Object();
 
-    private boolean intercepting;
-    private Path tempFile;
-    private ChannelHandlerContext pendingCtx;
-    private HttpMethod pendingMethod;
+    /** Per-channel request state to avoid race conditions on concurrent requests. */
+    private static final class RequestState {
+        final Path tempFile;
+        final ChannelHandlerContext ctx;
+        RequestState(Path tempFile, ChannelHandlerContext ctx) {
+            this.tempFile = tempFile;
+            this.ctx = ctx;
+        }
+    }
+    private final Map<Channel, RequestState> channelStates = new ConcurrentHashMap<>();
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -68,21 +85,24 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
         }
 
         HttpObject httpObject = (HttpObject) msg;
+        Channel channel = ctx.channel();
 
-        if (!this.intercepting && httpObject instanceof HttpRequest request) {
-            if (!PATH_CONVERSATION_SAVE.startsWith(request.uri()) || request.method() != HttpMethod.POST) {
+        if (httpObject instanceof HttpRequest request) {
+            String uri = request.uri();
+            int qidx = uri.indexOf('?');
+            String path = qidx >= 0 ? uri.substring(0, qidx) : uri;
+            if (!PATH_CONVERSATION_SAVE.equals(path) || request.method() != HttpMethod.POST) {
                 ctx.fireChannelRead(msg);
                 return;
             }
-            this.intercepting = true;
-            this.pendingCtx = ctx;
-            this.pendingMethod = request.method();
-            this.tempFile = Files.createTempFile(LlamaServer.getCachePath().resolve("easy-chat"), "conv-save-", ".tmp");
+            Path tf = Files.createTempFile(LlamaServer.getCachePath().resolve("easy-chat"), "conv-save-", ".tmp");
+            channelStates.put(channel, new RequestState(tf, ctx));
             ReferenceCountUtil.release(msg);
             return;
         }
 
-        if (!this.intercepting || this.tempFile == null) {
+        RequestState state = channelStates.get(channel);
+        if (state == null) {
             ctx.fireChannelRead(msg);
             return;
         }
@@ -91,21 +111,20 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
             if (httpObject instanceof HttpContent content) {
                 ByteBuf data = content.content();
                 if (data.isReadable()) {
-                    try (OutputStream os = Files.newOutputStream(this.tempFile, java.nio.file.StandardOpenOption.APPEND)) {
+                    try (OutputStream os = Files.newOutputStream(state.tempFile, java.nio.file.StandardOpenOption.APPEND)) {
                         data.readBytes(os, data.readableBytes());
                     }
                 }
                 if (httpObject instanceof LastHttpContent) {
-                    Path tf = this.tempFile;
-                    ChannelHandlerContext pctx = this.pendingCtx;
-                    this.reset();
+                    RequestState removed = channelStates.remove(channel);
+                    Path tf = removed != null ? removed.tempFile : state.tempFile;
+                    ChannelHandlerContext pctx = (removed != null ? removed : state).ctx;
                     this.processSaveRequest(pctx, tf);
                 }
             }
         } catch (IOException e) {
             logger.info("接收 EasyChat conversation save 请求体失败", e);
-            this.cleanupTemp();
-            this.reset();
+            this.cleanupState(channel);
             LlamaServer.sendJsonResponse(ctx, ApiResponse.error("接收请求体失败: " + e.getMessage()));
         } finally {
             ReferenceCountUtil.release(msg);
@@ -114,47 +133,50 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        if (this.intercepting) {
-            this.cleanupTemp();
-            this.reset();
+        this.cleanupState(ctx.channel());
+        if (cause instanceof TooLongFrameException) {
+            String body = "{\"code\":\"PAYLOAD_TOO_LARGE\",\"message\":\"请求体过大，最大允许 16 MB\"}";
+            DefaultFullHttpResponse resp = new DefaultFullHttpResponse(
+                HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
+                Unpooled.copiedBuffer(body, StandardCharsets.UTF_8));
+            resp.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=utf-8");
+            resp.headers().set(HttpHeaderNames.CONTENT_LENGTH, resp.content().readableBytes());
+            ctx.writeAndFlush(resp).addListener(ChannelFutureListener.CLOSE);
+            return;
         }
         ctx.fireExceptionCaught(cause);
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        if (this.intercepting) {
-            this.cleanupTemp();
-            this.reset();
-        }
+        this.cleanupState(ctx.channel());
         super.channelInactive(ctx);
     }
 
-    private void reset() {
-        this.intercepting = false;
-        this.pendingCtx = null;
-        this.pendingMethod = null;
-    }
-
-    private void cleanupTemp() {
-        if (this.tempFile != null) {
+    private void cleanupState(Channel channel) {
+        RequestState state = channelStates.remove(channel);
+        if (state != null && state.tempFile != null) {
             try {
-                Files.deleteIfExists(this.tempFile);
+                Files.deleteIfExists(state.tempFile);
             } catch (IOException ignored) {
             }
-            this.tempFile = null;
         }
     }
 
     private void processSaveRequest(ChannelHandlerContext ctx, Path tempFile) {
         worker.execute(() -> {
             try {
-                this.executeSave(ctx, tempFile);
+                synchronized (SAVE_LOCK) {
+                    this.executeSave(ctx, tempFile);
+                }
             } catch (Exception e) {
                 logger.info("EasyChat conversation save 处理失败", e);
                 LlamaServer.sendJsonResponse(ctx, ApiResponse.error("保存会话失败: " + e.getMessage()));
             } finally {
-                this.cleanupTemp();
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                }
             }
         });
     }
@@ -175,7 +197,8 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
         }
 
         // Index the conversation object
-        try (InputStream convStream = this.rangeStream(tempFile, convRange.valueStart, convRange.valueEnd)) {
+        try (InputStream convStream = new BufferedInputStream(
+                this.rangeStream(tempFile, convRange.valueStart, convRange.valueEnd), 65536)) {
             JsonIndex convIndex = JsonIndex.index(convStream);
 
             // Read conversation.id
@@ -187,41 +210,39 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
             Path stateFile = this.getStateFilePath(stateDir);
             Path conversationDir = this.getConversationDirPath(stateDir);
 
-            synchronized (org.mark.llamacpp.server.controller.EasyChatController.class) {
-                // Check revision
-                JsonObject currentState = this.readJsonObjectIfExists(stateFile);
-                this.assertRevisionMatches(stateFile, currentState, baseRevision);
+            // Check revision
+            JsonObject currentState = this.readJsonObjectIfExists(stateFile);
+            this.assertRevisionMatches(stateFile, currentState, baseRevision);
 
-                // Copy conversation JSON to target file (streaming)
-                String storageKey = this.normalizeStorageKey(convId);
-                Path conversationFile = this.getConversationFilePath(conversationDir, storageKey);
-                this.copyRangeToFile(tempFile, convRange.valueStart, convRange.valueEnd, conversationFile);
+            // Copy conversation JSON to target file (streaming)
+            String storageKey = this.normalizeStorageKey(convId);
+            Path conversationFile = this.getConversationFilePath(conversationDir, storageKey);
+            this.copyRangeToFile(tempFile, convRange.valueStart, convRange.valueEnd, conversationFile);
 
-                // Count messages
-                int messageCount = this.countMessages(tempFile, convRange, convIndex);
+            // Count messages
+            int messageCount = this.countMessages(tempFile, convRange, convIndex);
 
-                // Build summary from raw JSON fields
-                JsonObject summary = this.buildSummaryFromIndex(tempFile, convRange, convIndex, convId, storageKey, messageCount);
+            // Build summary from raw JSON fields
+            JsonObject summary = this.buildSummaryFromIndex(tempFile, convRange, convIndex, convId, storageKey, messageCount);
 
-                // Update state file
-                JsonObject storedState = this.readJsonObjectIfExists(stateFile);
-                JsonArray summaries = this.getConversationArray(storedState);
-                summaries = this.normalizeConversationSummaries(summaries);
-                this.upsertConversationSummary(summaries, summary);
-                storedState.add("conversations", summaries);
-                String revision = UUID.randomUUID().toString();
-                storedState.addProperty(STATE_REVISION_KEY, revision);
-                this.writeJsonFile(stateFile, storedState);
+            // Update state file
+            JsonObject storedState = this.readJsonObjectIfExists(stateFile);
+            JsonArray summaries = this.getConversationArray(storedState);
+            summaries = this.normalizeConversationSummaries(summaries);
+            this.upsertConversationSummary(summaries, summary);
+            storedState.add("conversations", summaries);
+            String revision = UUID.randomUUID().toString();
+            storedState.addProperty(STATE_REVISION_KEY, revision);
+            this.writeJsonFile(stateFile, storedState);
 
-                // Delete stale conversation files
-                this.deleteStaleConversationFiles(conversationDir, summaries);
+            // Delete stale conversation files
+            this.deleteStaleConversationFiles(conversationDir, summaries);
 
-                // Send response
-                Map<String, Object> data = new HashMap<>();
-                data.put("saved", true);
-                data.put("revision", revision);
-                LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
-            }
+            // Send response
+            Map<String, Object> data = new HashMap<>();
+            data.put("saved", true);
+            data.put("revision", revision);
+            LlamaServer.sendJsonResponse(ctx, ApiResponse.success(data));
         }
     }
 
@@ -333,10 +354,10 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
         if (msgsRange == null) return 0;
         long absStart = convRange.valueStart + msgsRange.valueStart;
         long absEnd = convRange.valueStart + msgsRange.valueEnd;
-        // Count top-level objects in the array
-        // The array content is between [ and ], count { at depth 1
+        // Count top-level objects in the array using buffered read
         try (RandomAccessFile raf = new RandomAccessFile(sourceFile.toFile(), "r")) {
             raf.seek(absStart);
+            byte[] buf = new byte[65536];
             // Skip the opening [
             int ch = raf.read();
             if (ch != '[') return 0;
@@ -346,31 +367,37 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
             boolean escaped = false;
             long pos = absStart + 1;
             long limit = absEnd;
-            while (pos < limit) {
-                ch = raf.read();
-                if (ch == -1) break;
-                pos++;
-                if (escaped) {
-                    escaped = false;
-                    continue;
-                }
-                if (inString) {
-                    if (ch == '\\') {
-                        escaped = true;
-                    } else if (ch == '"') {
-                        inString = false;
+            long remaining = limit - pos;
+            while (remaining > 0) {
+                int toRead = (int) Math.min(buf.length, remaining);
+                int n = raf.read(buf, 0, toRead);
+                if (n == -1) break;
+                for (int i = 0; i < n; i++) {
+                    ch = buf[i] & 0xFF;
+                    pos++;
+                    remaining--;
+                    if (escaped) {
+                        escaped = false;
+                        continue;
                     }
-                    continue;
-                }
-                if (ch == '"') {
-                    inString = true;
-                    continue;
-                }
-                if (ch == '{') {
-                    depth++;
-                    if (depth == 1) count++;
-                } else if (ch == '}') {
-                    depth--;
+                    if (inString) {
+                        if (ch == '\\') {
+                            escaped = true;
+                        } else if (ch == '"') {
+                            inString = false;
+                        }
+                        continue;
+                    }
+                    if (ch == '"') {
+                        inString = true;
+                        continue;
+                    }
+                    if (ch == '{') {
+                        depth++;
+                        if (depth == 1) count++;
+                    } else if (ch == '}') {
+                        depth--;
+                    }
                 }
             }
             return count;
@@ -459,6 +486,18 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
     }
 
     private String normalizeStorageKey(String conversationId) {
+        String source = conversationId == null ? "" : conversationId.trim();
+        if (!source.isEmpty() && source.matches("[A-Za-z0-9_-]+")) {
+            return source;
+        }
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(source.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String resolveStorageKey(String storedKey, String conversationId) {
+        String key = storedKey == null ? "" : storedKey.trim();
+        if (!key.isEmpty() && key.matches("[A-Za-z0-9_-]+")) {
+            return key;
+        }
         String source = conversationId == null ? "" : conversationId.trim();
         if (!source.isEmpty() && source.matches("[A-Za-z0-9_-]+")) {
             return source;
@@ -557,7 +596,9 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
             if (element == null || !element.isJsonObject()) continue;
             JsonObject summary = element.getAsJsonObject();
             String id = JsonUtil.getJsonString(summary, "id", "");
-            String storageKey = this.normalizeStorageKey(id);
+            // Use stored storageKey from summary, fallback to id
+            String storedKey = JsonUtil.getJsonString(summary, "storageKey", null);
+            String storageKey = this.resolveStorageKey(storedKey, id);
             expectedFiles.add(storageKey + ".json");
         }
         try (Stream<Path> stream = Files.list(conversationDir)) {
@@ -582,7 +623,7 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
         private final Map<String, MemberRange> members = new LinkedHashMap<>();
 
         public static JsonIndex index(Path file) throws IOException {
-            try (InputStream is = Files.newInputStream(file)) {
+            try (InputStream is = new BufferedInputStream(Files.newInputStream(file), 65536)) {
                 return index(is);
             }
         }
