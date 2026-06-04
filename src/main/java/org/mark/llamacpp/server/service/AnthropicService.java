@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -86,6 +88,9 @@ public class AnthropicService {
 	}
 
 	private static final javax.net.ssl.HostnameVerifier TRUST_ALL_HOSTNAME_VERIFIER = (hostname, session) -> true;
+
+	private static final Pattern MODEL_PATTERN = Pattern.compile("\"model\"\\s*:\\s*\"([^\"]+)\"");
+	private static final Pattern STREAM_PATTERN = Pattern.compile("\"stream\"\\s*:\\s*(true|false)");
 
 	public AnthropicService() {
 		
@@ -218,6 +223,114 @@ public class AnthropicService {
     }
     
     /**
+     * 从 body 中通过正则提取 model 字段
+     */
+    private String extractModelFromBody(String content) {
+        if (content == null || content.isEmpty()) return null;
+        int limit = Math.min(content.length(), 1024);
+        Matcher m = MODEL_PATTERN.matcher(content.substring(0, limit));
+        if (m.find()) return m.group(1);
+        return null;
+    }
+
+    /**
+     * 从 body 中通过正则提取 stream 字段
+     */
+    private boolean extractStreamFromBody(String content) {
+        if (content == null || content.isEmpty()) return false;
+        int limit = Math.min(content.length(), 1024);
+        Matcher m = STREAM_PATTERN.matcher(content.substring(0, limit));
+        if (m.find()) return "true".equals(m.group(1));
+        return false;
+    }
+
+    /**
+     * 将原始 body 写入输出流，如有注入字符串则插入到最后一个 } 之前
+     */
+    private void streamBodyWithInjection(OutputStream out, byte[] bodyBytes, String injection) throws IOException {
+        if (injection == null || injection.isEmpty()) {
+            out.write(bodyBytes);
+            return;
+        }
+        String bodyStr = new String(bodyBytes, StandardCharsets.UTF_8);
+        int lastBrace = bodyStr.lastIndexOf('}');
+        if (lastBrace > 0) {
+            String before = bodyStr.substring(0, lastBrace);
+            String after = bodyStr.substring(lastBrace);
+            out.write((before + "," + injection + after).getBytes(StandardCharsets.UTF_8));
+        } else {
+            out.write(bodyBytes);
+        }
+    }
+
+    /**
+     * 原始 body 转发到 /v1/messages 端点
+     * @param ctx 通道上下文
+     * @param bodyBytes 原始请求 body 字节
+     * @param targetUrl 目标 URL（/v1/messages）
+     * @param apiKey 目标 API Key（可为 null）
+     * @param isStream 是否流式
+     * @param modelName 模型名称
+     * @param injection 注入字符串（可为 null，远程转发时不注入）
+     */
+    private void forwardRawBody(ChannelHandlerContext ctx, byte[] bodyBytes, String targetUrl, String apiKey, boolean isStream, String modelName, String injection) {
+        worker.execute(() -> {
+            HttpURLConnection connection = null;
+            String requestId = null;
+            try {
+                requestId = ModelRequestTracker.getInstance().createRequest(modelName, "/v1/messages");
+                URL url = URI.create(targetUrl).toURL();
+                connection = (HttpURLConnection) url.openConnection();
+
+                if (connection instanceof HttpsURLConnection) {
+                    ((HttpsURLConnection) connection).setSSLSocketFactory(TRUST_ALL_SOCKET_FACTORY);
+                    ((HttpsURLConnection) connection).setHostnameVerifier(TRUST_ALL_HOSTNAME_VERIFIER);
+                }
+
+                synchronized (this.channelConnectionMap) {
+                    this.channelConnectionMap.put(ctx, connection);
+                }
+
+                connection.setRequestMethod(HttpMethod.POST.name());
+                connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE.toString(), "application/json");
+
+                if (apiKey != null && !apiKey.isBlank()) {
+                    connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+                }
+
+                connection.setConnectTimeout(36000 * 1000);
+                connection.setReadTimeout(36000 * 1000);
+
+                connection.setDoOutput(true);
+                try (OutputStream os = connection.getOutputStream()) {
+                    streamBodyWithInjection(os, bodyBytes, injection);
+                }
+
+                int responseCode = connection.getResponseCode();
+                ModelRequestTracker.getInstance().updatePhase(requestId, Phase.GENERATION);
+                if (isStream) {
+                    this.handleStreamResponse(ctx, connection, responseCode, requestId, modelName);
+                } else {
+                    this.handleNonStreamResponse(ctx, connection, responseCode, requestId, modelName);
+                }
+            } catch (Exception e) {
+                logger.info("Error forwarding Anthropic request to /v1/messages", e);
+                this.sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+            } catch (Throwable t) {
+                logger.error("虚拟线程异常已兜底: {}", t.getMessage(), t);
+            } finally {
+                if (requestId != null) ModelRequestTracker.getInstance().removeRequest(requestId);
+                if (connection != null) {
+                    connection.disconnect();
+                }
+                synchronized (this.channelConnectionMap) {
+                    this.channelConnectionMap.remove(ctx);
+                }
+            }
+        });
+    }
+
+    /**
      * 	对应：v1/messages
      * @param ctx
      * @param request
@@ -227,41 +340,21 @@ public class AnthropicService {
         	this.sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED, "Only POST method is supported");
             return;
         }
-        
+
         if (!this.checkApiKey(request)) {
         	this.sendError(ctx, HttpResponseStatus.UNAUTHORIZED, "invalid api key");
             return;
         }
 
         String content = request.content().toString(CharsetUtil.UTF_8);
-        JsonObject anthropicReq;
-        try {
-            anthropicReq = gson.fromJson(content, JsonObject.class);
-        } catch (Exception e) {
-        	this.sendError(ctx, HttpResponseStatus.BAD_REQUEST, "Invalid JSON body");
-            return;
-        }
-        JsonObject oaiReq = this.convertAnthropicToOai(anthropicReq);
-        // 处理一下think
-        ParamTool.handleThinking(oaiReq);
-        //
-        ChatTemplateKwargsService.getInstance().handleOpenAI(oaiReq);
-        // 处理采样覆盖
-        ModelSamplingService.getInstance().handleOpenAI(oaiReq);
-        
-        String nodeId = JsonUtil.getJsonString(anthropicReq, "nodeId", null);
-        LlamaServerManager manager = LlamaServerManager.getInstance();
-
-        if (nodeId != null && !nodeId.isBlank()) {
-            oaiReq.remove("nodeId");
-            this.routeMessagesToNode(ctx, request, oaiReq, nodeId);
+        if (content == null || content.trim().isEmpty()) {
+        	this.sendError(ctx, HttpResponseStatus.BAD_REQUEST, "Request body is empty");
             return;
         }
 
-        String modelName;
-        if (oaiReq.has("model")) {
-            modelName = oaiReq.get("model").getAsString();
-        } else {
+        String modelName = extractModelFromBody(content);
+        if (modelName == null || modelName.isBlank()) {
+            LlamaServerManager manager = LlamaServerManager.getInstance();
             modelName = manager.getFirstModelName();
             if (modelName == null) {
                 this.sendError(ctx, HttpResponseStatus.NOT_FOUND, "No models loaded");
@@ -269,11 +362,14 @@ public class AnthropicService {
             }
         }
 
-        boolean isStream = false;
-        if (oaiReq.has("stream") && oaiReq.get("stream").isJsonPrimitive()) {
-            try {
-                isStream = oaiReq.get("stream").getAsBoolean();
-            } catch (Exception ignore) {}
+        boolean isStream = extractStreamFromBody(content);
+        String nodeId = request.headers().get("X-Node-Id");
+        byte[] bodyBytes = content.getBytes(StandardCharsets.UTF_8);
+        LlamaServerManager manager = LlamaServerManager.getInstance();
+
+        if (nodeId != null && !nodeId.isBlank()) {
+            this.routeMessagesToNode(ctx, bodyBytes, nodeId, isStream, modelName, null);
+            return;
         }
 
         if (!manager.getLoadedProcesses().containsKey(modelName)) {
@@ -288,8 +384,9 @@ public class AnthropicService {
                 this.sendError(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, "Model port not found for " + modelName);
                 return;
             }
-            String targetUrl = String.format("http://localhost:%d/v1/chat/completions", port.intValue());
-            this.forwardMessagesToChatCompletions(ctx, request, JsonUtil.toJson(oaiReq), targetUrl, null, isStream, modelName);
+            String targetUrl = String.format("http://localhost:%d/v1/messages", port.intValue());
+            String injection = SamplingInjectionBuilder.buildInjectionString(modelName);
+            this.forwardRawBody(ctx, bodyBytes, targetUrl, null, isStream, modelName, injection);
             return;
         }
 
@@ -297,15 +394,16 @@ public class AnthropicService {
             modelName = manager.getFirstModelName();
             Integer port = manager.getModelPort(modelName);
             if (port != null) {
-                String targetUrl = String.format("http://localhost:%d/v1/chat/completions", port.intValue());
-                this.forwardMessagesToChatCompletions(ctx, request, JsonUtil.toJson(oaiReq), targetUrl, null, isStream, modelName);
+                String targetUrl = String.format("http://localhost:%d/v1/messages", port.intValue());
+                String injection = SamplingInjectionBuilder.buildInjectionString(modelName);
+                this.forwardRawBody(ctx, bodyBytes, targetUrl, null, isStream, modelName, injection);
                 return;
             }
         }
 
         String[] remoteResult = resolveModelOnRemoteNodes(modelName);
         if (remoteResult != null) {
-            this.forwardMessagesToChatCompletions(ctx, request, JsonUtil.toJson(oaiReq), remoteResult[0], remoteResult[1], isStream, modelName);
+            this.forwardRawBody(ctx, bodyBytes, remoteResult[0], remoteResult[1], isStream, modelName, null);
             return;
         }
 
@@ -456,25 +554,18 @@ public class AnthropicService {
         });
     }
 
-    private void routeMessagesToNode(ChannelHandlerContext ctx, FullHttpRequest request, JsonObject oaiReq, String nodeId) {
+    private void routeMessagesToNode(ChannelHandlerContext ctx, byte[] bodyBytes, String nodeId, boolean isStream, String modelName, String apiKey) {
         NodeManager nodeManager = NodeManager.getInstance();
         LlamaHubNode node = nodeManager.getNode(nodeId);
         if (node == null || !node.isEnabled()) {
             this.sendError(ctx, HttpResponseStatus.NOT_FOUND, "Node not found or disabled: " + nodeId);
             return;
         }
-        String modelName = oaiReq.has("model") ? oaiReq.get("model").getAsString() : "";
-        String targetUrl = node.getBaseUrl() + "/v1/chat/completions";
-
-        boolean isStream = false;
-        if (oaiReq.has("stream") && oaiReq.get("stream").isJsonPrimitive()) {
-            try {
-                isStream = oaiReq.get("stream").getAsBoolean();
-            } catch (Exception ignore) {}
+        String targetUrl = node.getBaseUrl() + "/v1/messages";
+        if (apiKey == null) {
+            apiKey = node.getApiKey();
         }
-
-        String apiKey = node.getApiKey();
-        this.forwardMessagesToChatCompletions(ctx, request, JsonUtil.toJson(oaiReq), targetUrl, apiKey, isStream, modelName);
+        this.forwardRawBody(ctx, bodyBytes, targetUrl, apiKey, isStream, modelName, null);
     }
 
     private String[] resolveModelOnRemoteNodes(String modelName) {
@@ -508,7 +599,7 @@ public class AnthropicService {
                         logger.info("[Anthropic路由] 远程模型条目: nodeId={}, key={}", node.getNodeId(), remoteKey);
                         if (modelName.equals(remoteKey)) {
                             logger.info("[Anthropic路由] 匹配成功: model={}, nodeId={}", modelName, node.getNodeId());
-                            return new String[]{ node.getBaseUrl() + "/v1/chat/completions", node.getApiKey() };
+                            return new String[]{ node.getBaseUrl() + "/v1/messages", node.getApiKey() };
                         }
                     }
                 }
@@ -521,7 +612,7 @@ public class AnthropicService {
                         String id = JsonUtil.getJsonString(d, "id", "");
                         if (modelName.equals(id)) {
                             logger.info("[Anthropic路由] data匹配成功: model={}, nodeId={}", modelName, node.getNodeId());
-                            return new String[]{ node.getBaseUrl() + "/v1/chat/completions", node.getApiKey() };
+                            return new String[]{ node.getBaseUrl() + "/v1/messages", node.getApiKey() };
                         }
                     }
                 }
@@ -535,6 +626,7 @@ public class AnthropicService {
         return null;
     }
 
+    @Deprecated
     private void forwardMessagesToChatCompletions(ChannelHandlerContext ctx, FullHttpRequest request, String requestBody, String targetUrl, String apiKey, boolean isStream, String modelName) {
         HttpMethod method = request.method();
         Map<String, String> headers = new HashMap<>();
@@ -665,6 +757,7 @@ public class AnthropicService {
         });
     }
 
+    @Deprecated
     private void handleAnthropicNonStreamFromOai(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
         String responseBody;
         if (responseCode >= 200 && responseCode < 300) {
@@ -831,6 +924,7 @@ public class AnthropicService {
         });
     }
 
+    @Deprecated
     private void handleAnthropicStreamFromOai(ChannelHandlerContext ctx, HttpURLConnection connection, int responseCode, String modelName, String requestId) throws IOException {
         HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.valueOf(responseCode));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/event-stream; charset=UTF-8");
@@ -950,6 +1044,7 @@ public class AnthropicService {
      * @param body
      * @return
      */
+    @Deprecated
     private JsonObject convertAnthropicToOai(JsonObject body) {
         if (body == null || body.isJsonNull()) {
             throw new IllegalArgumentException("Request body cannot be null");
@@ -1201,6 +1296,7 @@ public class AnthropicService {
         return oaiBody;
     }
 
+    @Deprecated
     public JsonObject convertAnthropicToOai(String body) {
         if (body == null || body.trim().isEmpty()) {
             throw new IllegalArgumentException("Request body cannot be empty");
@@ -1238,6 +1334,7 @@ public class AnthropicService {
         return el.getAsJsonObject();
     }
 
+    @Deprecated
     private JsonObject convertOaiResponseToAnthropic(JsonObject oaiRes) {
         JsonObject result = new JsonObject();
         result.addProperty("id", getString(oaiRes, "id"));
@@ -1315,6 +1412,7 @@ public class AnthropicService {
         return result;
     }
 
+    @Deprecated
     private String convertOaiStreamChunkToAnthropicSse(JsonObject chunk, AnthropicStreamState state) {
         JsonObject choice = getChoice(chunk);
         JsonObject delta = getObject(choice, "delta");
@@ -1398,6 +1496,7 @@ public class AnthropicService {
         return out.toString();
     }
 
+    @Deprecated
     private JsonObject buildMessageStartData(JsonObject chunk) {
         JsonObject message = new JsonObject();
         message.addProperty("id", getString(chunk, "id"));
@@ -1431,6 +1530,7 @@ public class AnthropicService {
         return data;
     }
 
+    @Deprecated
     private JsonObject buildContentBlockStart(int index, String type, String id, String name) {
         JsonObject contentBlock = new JsonObject();
         contentBlock.addProperty("type", type);
@@ -1449,6 +1549,7 @@ public class AnthropicService {
         return data;
     }
 
+    @Deprecated
     private JsonObject buildThinkingDelta(int index, String deltaText) {
         JsonObject delta = new JsonObject();
         delta.addProperty("type", "thinking_delta");
@@ -1460,6 +1561,7 @@ public class AnthropicService {
         return data;
     }
 
+    @Deprecated
     private JsonObject buildTextDelta(int index, String deltaText) {
         JsonObject delta = new JsonObject();
         delta.addProperty("type", "text_delta");
@@ -1471,6 +1573,7 @@ public class AnthropicService {
         return data;
     }
 
+    @Deprecated
     private JsonObject buildInputJsonDelta(int index, String partialJson) {
         JsonObject delta = new JsonObject();
         delta.addProperty("type", "input_json_delta");
@@ -1482,6 +1585,7 @@ public class AnthropicService {
         return data;
     }
 
+    @Deprecated
     private String buildAnthropicStopEvents(AnthropicStreamState state) {
         StringBuilder out = new StringBuilder();
         if (state.thinkingStarted) {
@@ -1539,6 +1643,7 @@ public class AnthropicService {
         ctx.writeAndFlush(httpContent);
     }
 
+    @Deprecated
     private String buildAnthropicEvent(String event, JsonObject data) {
         return "event: " + event + "\n" + "data: " + JsonUtil.toJson(data) + "\n\n";
     }
@@ -1624,11 +1729,13 @@ public class AnthropicService {
         }
     }
 
+    @Deprecated
     private static class ToolCallState {
         private String id = "";
         private String name = "";
     }
 
+    @Deprecated
     private static class AnthropicStreamState {
         private boolean messageStarted = false;
         private boolean hasThinking = false;
