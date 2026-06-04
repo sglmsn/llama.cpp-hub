@@ -27,19 +27,15 @@ public class SamplingInjectionBuilder {
         if (result.isEmpty()) {
             return "";
         }
-        logger.debug("采样注入字符串 [model={}]: {}", modelName, result);
+        logger.info("采样注入字符串 [model={}]: {}", modelName, result);
         return result;
     }
 
     static void appendSampling(StringBuilder sb, String modelName) {
         JsonObject sampling = ModelSamplingService.getInstance().getOpenAISampling(modelName);
+        logger.info("[sampling] model={}, sampling={}", modelName, sampling);
         if (sampling == null || sampling.entrySet().isEmpty()) {
             return;
-        }
-        boolean forceThinking = readBoolean(sampling, "force_enable_thinking");
-        Boolean enableThinking = null;
-        if (forceThinking) {
-            enableThinking = readBooleanValue(sampling, "enable_thinking");
         }
         for (Map.Entry<String, JsonElement> entry : sampling.entrySet()) {
             String key = entry.getKey();
@@ -55,32 +51,40 @@ public class SamplingInjectionBuilder {
             }
             sb.append('"').append(key).append("\":").append(serializeValue(value));
         }
-        if (enableThinking != null && !forceThinking) {
-            JsonObject kwargs = buildMergedKwargs(modelName, enableThinking);
-            if (kwargs != null && !kwargs.entrySet().isEmpty()) {
+    }
+
+      static void appendChatTemplateKwargs(StringBuilder sb, String modelName) {
+        JsonObject kwargs = ChatTemplateKwargsService.getInstance().getOpenAIChatTemplateKwargs(modelName);
+        logger.info("[kwargs] model={}, rawKwargs={}", modelName, kwargs);
+        JsonObject sampling = ModelSamplingService.getInstance().getOpenAISampling(modelName);
+        boolean forceThinking = sampling != null && readBoolean(sampling, "force_enable_thinking");
+        Boolean enableThinking = null;
+        if (forceThinking) {
+            enableThinking = readBooleanValue(sampling, "enable_thinking");
+        }
+        logger.info("[kwargs] model={}, forceThinking={}, enableThinking={}", modelName, forceThinking, enableThinking);
+
+        if (kwargs == null || kwargs.entrySet().isEmpty()) {
+            /* 无 kwargs 配置，但 force_enable_thinking 开启时，新建 chat_template_kwargs 注入 */
+            if (forceThinking && enableThinking != null) {
+                JsonObject newKwargs = new JsonObject();
+                newKwargs.addProperty("enable_thinking", enableThinking);
                 if (sb.length() > 0) {
                     sb.append(',');
                 }
-                sb.append("\"chat_template_kwargs\":").append(JsonUtil.toJson(kwargs));
+                sb.append("\"chat_template_kwargs\":").append(JsonUtil.toJson(newKwargs));
+                logger.info("[kwargs] model={}, no raw kwargs, created chat_template_kwargs={}", modelName, newKwargs);
             }
-        }
-    }
-
-    static void appendChatTemplateKwargs(StringBuilder sb, String modelName) {
-        JsonObject kwargs = ChatTemplateKwargsService.getInstance().getOpenAIChatTemplateKwargs(modelName);
-        if (kwargs == null || kwargs.entrySet().isEmpty()) {
             return;
         }
-        JsonObject sampling = ModelSamplingService.getInstance().getOpenAISampling(modelName);
-        boolean forceThinking = sampling != null && readBoolean(sampling, "force_enable_thinking");
-        if (forceThinking) {
-            Boolean enableThinking = readBooleanValue(sampling, "enable_thinking");
-            if (enableThinking != null) {
-                kwargs = buildMergedKwargs(modelName, enableThinking);
-                if (kwargs == null) {
-                    return;
-                }
+
+        /* 有 kwargs 配置，合并 enable_thinking 后注入 */
+        if (forceThinking && enableThinking != null) {
+            kwargs = buildMergedKwargs(modelName, enableThinking);
+            if (kwargs == null) {
+                return;
             }
+            logger.info("[kwargs] model={}, mergedKwargs={}", modelName, kwargs);
         }
         if (sb.length() > 0) {
             sb.append(',');
