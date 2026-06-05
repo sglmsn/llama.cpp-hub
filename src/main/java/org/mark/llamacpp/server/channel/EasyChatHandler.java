@@ -554,6 +554,11 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(source.getBytes(StandardCharsets.UTF_8));
 	}
 
+	private String toBase64StorageKey(String conversationId) {
+		String source = conversationId == null ? "" : conversationId.trim();
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(source.getBytes(StandardCharsets.UTF_8));
+	}
+
 	private void assertRevisionMatches(Path stateFile, JsonObject currentState, String baseRevision) throws Exception {
 		if (!Files.exists(stateFile))
 			return;
@@ -661,6 +666,10 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
 			String storedKey = JsonUtil.getJsonString(summary, "storageKey", null);
 			String storageKey = this.resolveStorageKey(storedKey, id);
 			expectedFiles.add(storageKey + ".json");
+			String base64Key = this.toBase64StorageKey(id);
+			if (!base64Key.equals(storageKey)) {
+				expectedFiles.add(base64Key + ".json");
+			}
 		}
 		try (Stream<Path> stream = Files.list(conversationDir)) {
 			stream.filter(Files::isRegularFile).forEach(path -> {
@@ -669,7 +678,8 @@ public class EasyChatHandler extends ChannelInboundHandlerAdapter {
 					return;
 				if (!expectedFiles.contains(fileName)) {
 					try {
-						Files.deleteIfExists(path);
+						Path renamed = path.resolveSibling(fileName + ".deleted");
+						Files.move(path, renamed, StandardCopyOption.REPLACE_EXISTING);
 					} catch (Exception e) {
 						throw new RuntimeException(e);
 					}

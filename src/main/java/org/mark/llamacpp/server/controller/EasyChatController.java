@@ -169,6 +169,12 @@ public class EasyChatController implements BaseController {
 				}
 			}
 			if (!Files.exists(conversationFile)) {
+				String base64Key = this.toBase64StorageKey(conversationId);
+				if (!base64Key.equals(storageKey) && !base64Key.equals(conversationId.trim())) {
+					conversationFile = this.getConversationFilePath(conversationDir, base64Key);
+				}
+			}
+			if (!Files.exists(conversationFile)) {
 				throw new IllegalStateException("会话不存在: " + conversationId);
 			}
 			String prefix = "{\"success\":true,\"data\":{\"conversation\":";
@@ -408,6 +414,10 @@ public class EasyChatController implements BaseController {
 			String id = JsonUtil.getJsonString(summary, "id", "");
 			String storageKey = this.normalizeStorageKey(JsonUtil.getJsonString(summary, "storageKey", null), id);
 			expectedFiles.add(storageKey + ".json");
+			String base64Key = this.toBase64StorageKey(id);
+			if (!base64Key.equals(storageKey)) {
+				expectedFiles.add(base64Key + ".json");
+			}
 		}
 		try (Stream<Path> stream = Files.list(conversationDir)) {
 			stream.filter(Files::isRegularFile).forEach(path -> {
@@ -417,7 +427,8 @@ public class EasyChatController implements BaseController {
 				}
 				if (!expectedFiles.contains(fileName)) {
 					try {
-						Files.deleteIfExists(path);
+						Path renamed = path.resolveSibling(fileName + ".deleted");
+						Files.move(path, renamed, StandardCopyOption.REPLACE_EXISTING);
 					} catch (Exception e) {
 						throw new RuntimeException(e);
 					}
@@ -459,6 +470,11 @@ public class EasyChatController implements BaseController {
 		if (!source.isEmpty() && source.matches("[A-Za-z0-9_-]+")) {
 			return source;
 		}
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(source.getBytes(StandardCharsets.UTF_8));
+	}
+
+	private String toBase64StorageKey(String conversationId) {
+		String source = conversationId == null ? "" : conversationId.trim();
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(source.getBytes(StandardCharsets.UTF_8));
 	}
 
