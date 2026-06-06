@@ -1107,7 +1107,7 @@ public class LlamaServerManager {
 			int port = this.getNextAvailablePort();
 			String allArgs = (cmd == null ? "" : cmd.trim()) + (extraParams == null ? "" : " " + extraParams.trim());
 			Integer clientPort = cmdHasFlag(allArgs, "--port") ? extractPortFromCmd(allArgs) : null;
-			int actualPort = clientPort != null ? clientPort : port;
+			int actualPort = clientPort != null && clientPort > 0 && clientPort < 65535 ? clientPort : port;
 			String commandStr = this.buildCommandStr(targetModel, port, llamaBinPath, device, mg, enableVision, cmd, extraParams, chatTemplateFilePath);
 			String processName = "llama-server-" + modelId;
 			LlamaCppProcess process = new LlamaCppProcess(processName, commandStr, llamaBinPath);
